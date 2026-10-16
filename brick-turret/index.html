@@ -13,7 +13,7 @@
    deliberately single-theme (dark ink board): the game commits to one look. */
 :root{
   color-scheme: dark;
-  --bg:#12152e; --panel:#1b2044; --line:#2d3466; --fg:#eeebfb; --muted:#9b9ec9;
+  --bg:#12152e; --panel:#1b2044; --panel2:#232a58; --line:#2d3466; --fg:#eeebfb; --muted:#9b9ec9;
   --accent:#ffc857; --mint:#5eead4; --danger:#ff6b81; --ink:#0e1230;
   --font-display:'Do Hyeon','Noto Sans KR',system-ui,sans-serif;
   --font-body:'Noto Sans KR',system-ui,-apple-system,'Apple SD Gothic Neo','Malgun Gothic',sans-serif;
@@ -39,25 +39,38 @@ body{
 #stage{flex:1;min-height:0;width:100%;display:flex;align-items:center;justify-content:center}
 #board{position:relative;width:var(--bw,360px);height:var(--bh,640px);touch-action:none;user-select:none;-webkit-user-select:none}
 #cv{position:absolute;inset:0;width:100%;height:100%;display:block;border-radius:10px;background:var(--bg);box-shadow:0 0 0 1px var(--line)}
-#ov{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:16px;background:rgba(14,18,48,.86);border-radius:10px;text-align:center}
+#ov{position:absolute;inset:0;display:flex;overflow-y:auto;padding:16px;background:rgba(14,18,48,.88);border-radius:10px;text-align:center}
 #ov[hidden]{display:none}
-h1{font-family:var(--font-display);font-weight:400;font-size:36px;margin:0;letter-spacing:.02em}
+.ovin{margin:auto;width:100%;display:flex;flex-direction:column;align-items:center;gap:14px}
+h1{font-family:var(--font-display);font-weight:400;font-size:36px;margin:0;letter-spacing:.02em;text-wrap:balance}
 h2{font-family:var(--font-display);font-weight:400;font-size:24px;margin:0}
 .sub{color:var(--muted);font-size:14px;line-height:1.7;margin:0}
-.stat{font-family:var(--font-display);font-size:18px;font-variant-numeric:tabular-nums}
+.stat{font-family:var(--font-display);font-size:18px;font-variant-numeric:tabular-nums;margin:0}
 .btn{font-family:var(--font-display);font-size:20px;padding:10px 30px;border-radius:10px;border:0;background:var(--accent);color:var(--ink);cursor:pointer}
-.btn:focus-visible,.card:focus-visible{outline:2px solid var(--fg);outline-offset:2px}
+.btn:focus-visible,.card:focus-visible,summary:focus-visible{outline:2px solid var(--fg);outline-offset:2px}
 .cards{display:flex;flex-direction:column;gap:10px;width:100%}
 .card{display:grid;grid-template-columns:44px 1fr;gap:2px 12px;align-items:center;text-align:left;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px 12px;color:var(--fg);cursor:pointer;font-family:var(--font-body)}
 .card:hover{border-color:var(--accent)}
+.card.combo{background:var(--panel2);border-color:var(--accent)}
 .chip{grid-row:span 2;width:44px;height:44px;border-radius:8px;display:grid;place-items:center;font-family:var(--font-display);font-size:22px;color:var(--ink)}
 .card .t{font-family:var(--font-display);font-size:18px}
-.card .t em{font-style:normal;color:var(--accent);font-size:13px;margin-left:8px;font-family:var(--font-body)}
+.card .t em{font-style:normal;color:var(--accent);font-size:12.5px;margin-left:8px;font-family:var(--font-body)}
 .card .d{font-size:12.5px;color:var(--muted);line-height:1.45}
 .hint{font-size:12px;color:var(--muted);margin:0}
+.recipes{width:100%;font-size:12.5px;color:var(--muted);text-align:left}
+.recipes summary{cursor:pointer;text-align:center;list-style:none;color:var(--fg)}
+.recipes summary::-webkit-details-marker{display:none}
+.recipes summary::after{content:' ▾';color:var(--muted)}
+.recipes[open] summary::after{content:' ▴'}
+.recipes ul{margin:8px 0 0;padding:10px 12px;list-style:none;display:grid;gap:4px;background:var(--panel);border:1px solid var(--line);border-radius:8px}
+.recipes b{font-family:var(--font-display);font-weight:400;font-size:14px}
 #slots{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
-.slot{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:6px 4px;text-align:center;min-height:46px;display:flex;flex-direction:column;gap:6px;align-items:center;justify-content:center}
-.slot .n{font-family:var(--font-display);font-size:15px;line-height:1;color:var(--c,var(--fg))}
+.slot{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:6px 4px;text-align:center;min-height:46px;display:flex;flex-direction:column;gap:6px;align-items:center;justify-content:center;min-width:0}
+.slot .n{font-family:var(--font-display);font-size:15px;line-height:1;color:var(--c,var(--fg));white-space:nowrap}
+.slot .n.sm{font-size:12.5px}
+.slot .tag{font-size:10px;line-height:1;letter-spacing:.08em;color:var(--muted)}
+.slot.evo{border-color:var(--c);box-shadow:0 0 12px -3px var(--c)}
+.slot.evo .tag{color:var(--c)}
 .slot.empty .n{color:var(--muted);font-size:12px;font-family:var(--font-body)}
 .pips{display:flex;gap:3px}
 .pips i{width:10px;height:4px;border-radius:2px;background:var(--line)}
@@ -86,7 +99,7 @@ h2{font-family:var(--font-display);font-weight:400;font-size:24px;margin:0}
 'use strict';
 /* ---------- constants ---------- */
 const W=360,H=640,CX=180,CY=590,LINE=548,COLS=8,CW=W/COLS,ROW=32,BH=ROW-4;
-const R=5,MAXBALLS=60,MAXHP=5,SLOTS=4,MAXA=1.35,DPR=2,BALL_SP=380;
+const R=5,MAXBALLS=80,MAXHP=5,SLOTS=4,MAXA=1.35,DPR=2,BALL_SP=380;
 const TIER=['#6c8cff','#8f7cff','#c36cff','#ff6cc3','#ff7a6c','#ffa84d'];
 const $=id=>document.getElementById(id);
 const cv=$('cv'),ctx=cv.getContext('2d'),ov=$('ov'),stage=$('stage');
@@ -114,8 +127,22 @@ const P={
   power:{add:[1,2,3]},
   chill:{bonus:[.4,.7,1],dur:[3,3,3]}
 };
+/* evolutions: two specific Lv3 abilities become one slot with both effects plus a new one */
+const EVO={
+  fireworks:{n:'불꽃놀이',c:'#ffb347',from:['burn','split'],d:'불타는 벽돌이 부서지면 폭발해 주변 벽돌에 피해를 주고 불을 옮겨요'},
+  barrage:{n:'탄막',c:'#7ef0c9',from:['split','rapid'],d:'한 번에 공 3개를 부채꼴로 쏴요'},
+  railgun:{n:'레일건',c:'#d7b8ff',from:['bolt','pierce'],d:'2초마다 조준 방향의 벽돌을 모두 꿰뚫는 광선을 쏴요'},
+  glacier:{n:'빙결',c:'#a8e6ff',from:['power','chill'],d:'벽돌을 20번 맞힐 때마다 모든 벽돌이 2초 동안 얼어서 멈춰요'},
+  frostfire:{n:'서리불꽃',c:'#ff8fd0',from:['burn','chill'],d:'맞힌 벽돌이 5초 동안 초당 6 피해를 입어요'},
+  thunder:{n:'천둥',c:'#fff07a',from:['bolt','power'],d:'맞힐 때마다 근처 벽돌 4개에 번개가 떨어져요'}
+};
 const lvl=id=>G.ab[id]||0;
 const pv=(id,k)=>P[id][k][lvl(id)-1];
+const evo=id=>!!G.evo[id];
+function recipe(a,b){
+  for(const id in EVO){const f=EVO[id].from;if((f[0]===a&&f[1]===b)||(f[0]===b&&f[1]===a))return id;}
+  return null;
+}
 
 /* ---------- helpers ---------- */
 const clamp=(v,a,b)=>v<a?a:v>b?b:v;
@@ -125,24 +152,27 @@ const fmt=t=>Math.floor(t/60)+':'+String(Math.floor(t%60)).padStart(2,'0');
 const tier=hp=>hp<4?0:hp<8?1:hp<13?2:hp<20?3:hp<30?4:5;
 
 /* ---------- state ---------- */
-let G,aim=0,angle=0;
+let G,aim=0,angle=0,recipesOpen=false;
 const keys={left:false,right:false};
 
 function reset(){
   G={state:'title',t:0,lv:1,xp:0,need:xpNeed(1),hp:MAXHP,kills:0,
-     balls:[],bricks:[],parts:[],arcs:[],ab:{},order:[],fireT:0,rowN:0,topY:8,
+     balls:[],bricks:[],parts:[],arcs:[],rings:[],beams:[],boom:[],
+     ab:{},evo:{},slots:[],fireT:0,rowN:0,topY:8,
+     railT:2,glHits:0,freezeT:0,banner:null,
      pending:0,choices:null,first:false,flash:0,overAt:0};
   for(let i=4;i>=0;i--)spawnRow(8+i*ROW);
 }
 
 function spawnRow(y){
-  const n=G.rowN++,base=2+n*.42;
+  /* gentle early, steeper late so evolved builds still end eventually */
+  const n=G.rowN++,base=2+n*.3+n*n*.0016;
   const cols=[];
   for(let c=0;c<COLS;c++)if(rnd()<.62)cols.push(c);
   while(cols.length<3){const c=(rnd()*COLS)|0;if(!cols.includes(c))cols.push(c);}
   for(const c of cols){
     const hp=Math.max(1,Math.round(base*(.7+rnd()*.7)));
-    G.bricks.push({x:c*CW+2,y,w:CW-4,h:BH,hp,max:hp,row:n,flash:0,burn:0,burnDps:0,burnAcc:0,chill:0,dead:false});
+    G.bricks.push({x:c*CW+2,y,w:CW-4,h:BH,hp,max:hp,row:n,flash:0,burn:0,burnDps:0,burnAcc:0,ff:false,chill:0,dead:false});
   }
 }
 
@@ -151,9 +181,12 @@ function spawnBall(x,y,dx,dy,clone){
   G.balls.push({x,y,vx:dx*BALL_SP,vy:dy*BALL_SP,sp:BALL_SP,clone,hits:0,inside:new Set(),dead:false});
 }
 function fire(){
-  if(G.balls.length>=MAXBALLS)return;
-  const a=angle+(rnd()-.5)*.04;
-  spawnBall(CX+Math.sin(a)*26,CY-Math.cos(a)*26,Math.sin(a),-Math.cos(a),false);
+  const fan=evo('barrage')?[-.2,0,.2]:[0];
+  for(const o of fan){
+    if(G.balls.length>=MAXBALLS)return;
+    const a=angle+o+(rnd()-.5)*.04;
+    spawnBall(CX+Math.sin(a)*26,CY-Math.cos(a)*26,Math.sin(a),-Math.cos(a),false);
+  }
 }
 function fix(b){
   const m=b.sp*.24;
@@ -168,6 +201,7 @@ function split(b,n){
     spawnBall(b.x,b.y,Math.sin(a),-Math.cos(a),true);
   }
 }
+function ignite(br,dur,dps){br.burn=Math.max(br.burn,dur);br.burnDps=Math.max(br.burnDps,dps);}
 function hurt(br,d){
   if(br.dead)return;
   br.hp-=d;br.flash=.1;
@@ -176,15 +210,17 @@ function hurt(br,d){
 function kill(br){
   br.dead=true;G.kills++;
   gainXp(Math.max(1,Math.round(br.max*.35)));
-  if(G.parts.length<200){
-    const cx=br.x+br.w/2,cy=br.y+br.h/2,c=TIER[tier(br.max)];
+  const cx=br.x+br.w/2,cy=br.y+br.h/2;
+  if(evo('fireworks')&&br.burn>0)G.boom.push({x:cx,y:cy,d:Math.max(3,br.max*.5)});
+  if(G.parts.length<240){
+    const c=TIER[tier(br.max)];
     for(let i=0;i<6;i++)G.parts.push({x:cx,y:cy,vx:rnd()*160-80,vy:rnd()*160-100,life:.45,c});
   }
 }
-function bolt(from,k,d){
+function bolt(from,k,d,range){
   const fx=from.x+from.w/2,fy=from.y+from.h/2;
   const near=G.bricks.filter(b=>!b.dead&&b!==from)
-    .map(b=>({b,d:Math.hypot(b.x+b.w/2-fx,b.y+b.h/2-fy)})).filter(o=>o.d<110)
+    .map(b=>({b,d:Math.hypot(b.x+b.w/2-fx,b.y+b.h/2-fy)})).filter(o=>o.d<range)
     .sort((a,b)=>a.d-b.d).slice(0,k);
   for(const o of near){
     G.arcs.push({x1:fx,y1:fy,x2:o.b.x+o.b.w/2,y2:o.b.y+o.b.h/2,life:.14});
@@ -195,13 +231,20 @@ function onHit(ball,br){
   const base=1+(lvl('power')?pv('power','add'):0);
   let dmg=ball.clone?Math.max(1,base*.6):base;
   if(br.chill>0&&lvl('chill'))dmg*=1+pv('chill','bonus');
+  /* statuses land before the damage so a killing blow can already set off fireworks */
+  if(evo('frostfire')){ignite(br,5,6);br.ff=true;}
+  else if(lvl('burn'))ignite(br,pv('burn','dur'),pv('burn','dps'));
+  if(lvl('chill'))br.chill=Math.max(br.chill,pv('chill','dur'));
   hurt(br,dmg);
-  if(lvl('burn')){br.burn=pv('burn','dur');br.burnDps=pv('burn','dps');}
-  if(lvl('chill'))br.chill=pv('chill','dur');
-  if(lvl('bolt')&&rnd()<pv('bolt','p'))bolt(br,pv('bolt','k'),dmg);
+  if(evo('thunder'))bolt(br,4,dmg,130);
+  else if(lvl('bolt')&&rnd()<pv('bolt','p'))bolt(br,pv('bolt','k'),dmg,110);
   if(lvl('split')&&!ball.clone){
     ball.hits++;
     if(ball.hits>=pv('split','every')){ball.hits=0;split(ball,pv('split','n'));}
+  }
+  if(evo('glacier')&&++G.glHits>=20){
+    G.glHits=0;G.freezeT=2;
+    for(const b of G.bricks)if(!b.dead)b.chill=Math.max(b.chill,2);
   }
 }
 function stepBall(b,dt){
@@ -236,46 +279,117 @@ function stepBall(b,dt){
   }
   if(b.y>H+10)b.dead=true;
 }
+/* ray vs padded brick (slab test) */
+function rayHits(x0,y0,dx,dy,tMax,b,pad){
+  let t0=0,t1=tMax;
+  const ax=[[x0,dx,b.x-pad,b.x+b.w+pad],[y0,dy,b.y-pad,b.y+b.h+pad]];
+  for(const [o,d,mn,mx] of ax){
+    if(Math.abs(d)<1e-9){if(o<mn||o>mx)return false;continue;}
+    let ta=(mn-o)/d,tb=(mx-o)/d;
+    if(ta>tb)[ta,tb]=[tb,ta];
+    t0=Math.max(t0,ta);t1=Math.min(t1,tb);
+    if(t0>t1)return false;
+  }
+  return true;
+}
+function railgun(){
+  const dx=Math.sin(angle),dy=-Math.cos(angle),x0=CX+dx*26,y0=CY+dy*26;
+  let tMax=2000;
+  if(dx>0)tMax=Math.min(tMax,(W-x0)/dx);else if(dx<0)tMax=Math.min(tMax,-x0/dx);
+  if(dy<0)tMax=Math.min(tMax,-y0/dy);
+  const dmg=8+G.rowN*.25+(lvl('power')?pv('power','add')*2:0);
+  for(const b of G.bricks)if(!b.dead&&rayHits(x0,y0,dx,dy,tMax,b,4))hurt(b,dmg);
+  G.beams.push({x1:x0,y1:y0,x2:x0+dx*tMax,y2:y0+dy*tMax,life:.25});
+}
+function explode(e){
+  G.rings.push({x:e.x,y:e.y,life:.3});
+  const dps=lvl('burn')?pv('burn','dps'):3;
+  for(const b of G.bricks){
+    if(b.dead)continue;
+    const dx=b.x+b.w/2-e.x,dy=b.y+b.h/2-e.y;
+    if(dx*dx+dy*dy<58*58){ignite(b,3,dps);hurt(b,e.d);}
+  }
+}
 
 /* ---------- leveling ---------- */
 function gainXp(n){
   G.xp+=n;
   while(G.xp>=G.need){G.xp-=G.need;G.lv++;G.need=xpNeed(G.lv);G.pending++;}
 }
+function comboOptions(){
+  const maxed=G.slots.filter(s=>s.kind==='single'&&lvl(s.id)===3).map(s=>s.id);
+  const evos=[],fuses=[];
+  for(let i=0;i<maxed.length;i++)for(let j=i+1;j<maxed.length;j++){
+    const a=maxed[i],b=maxed[j],e=recipe(a,b);
+    if(e)evos.push({kind:'evo',id:e,a,b});else fuses.push({kind:'fuse',a,b});
+  }
+  return evos.length?evos:fuses;
+}
 function makeChoices(first){
   const pool=[];
   for(const id in AB){
     const l=lvl(id);
     if(l>0&&l<3)pool.push({id,kind:'up',to:l+1});
-    else if(l===0&&G.order.length<SLOTS)pool.push({id,kind:'new',to:1});
+    else if(l===0&&G.slots.length<SLOTS)pool.push({id,kind:'new',to:1});
   }
   for(let i=pool.length-1;i>0;i--){const j=(rnd()*(i+1))|0;[pool[i],pool[j]]=[pool[j],pool[i]];}
-  const out=pool.slice(0,3);
-  if(out.length&&out.length<3&&!first)out.push({id:'heal',kind:'heal'});
+  const out=[];
+  if(!first){const combos=comboOptions();if(combos.length)out.push(combos[(rnd()*combos.length)|0]);}
+  for(const c of pool){if(out.length>=3)break;out.push(c);}
+  if(out.length&&out.length<3&&!first)out.push({kind:'heal'});
   return out;
+}
+function chip2(a,b,label){return `<span class="chip" style="background:linear-gradient(135deg,${a} 50%,${b} 50%)">${label}</span>`;}
+function cardHtml(c,i){
+  if(c.kind==='heal')return `<button class="card" data-i="${i}"><span class="chip" style="background:var(--danger)">+</span><span class="t">수리<em>HP +1</em></span><span class="d">무너진 방어선을 고쳐요 (최대 ${MAXHP})</span></button>`;
+  if(c.kind==='evo'){
+    const E=EVO[c.id],A=AB[c.a],B=AB[c.b];
+    return `<button class="card combo" data-i="${i}">${chip2(A.c,B.c,'진')}<span class="t" style="color:${E.c}">${E.n}<em>진화 · ${A.n} + ${B.n}</em></span><span class="d">${E.d}. 두 능력의 효과도 그대로 남고, 슬롯이 1칸 비어요</span></button>`;
+  }
+  if(c.kind==='fuse'){
+    const A=AB[c.a],B=AB[c.b];
+    return `<button class="card combo" data-i="${i}">${chip2(A.c,B.c,'합')}<span class="t">합성<em>${A.n} + ${B.n}</em></span><span class="d">두 능력을 한 슬롯에 합쳐요. 효과는 그대로고 슬롯이 1칸 비어요</span></button>`;
+  }
+  const a=AB[c.id];
+  return `<button class="card" data-i="${i}"><span class="chip" style="background:${a.c}">${a.n[0]}</span><span class="t">${a.n}<em>${c.kind==='new'?'새 능력':'Lv '+(c.to-1)+' → '+c.to}</em></span><span class="d">${a.d[c.to-1]}</span></button>`;
+}
+function recipesHtml(){
+  const li=Object.values(EVO).map(E=>`<li><b style="color:${E.c}">${E.n}</b> = ${AB[E.from[0]].n} Lv3 + ${AB[E.from[1]].n} Lv3</li>`).join('');
+  return `<details class="recipes"${recipesOpen?' open':''}><summary>진화 조합 보기</summary><ul>${li}<li>그 밖의 Lv3 두 개는 합성할 수 있어요</li></ul></details>`;
 }
 function openChoices(first){
   const ch=makeChoices(first);
   if(!first&&!ch.length){
-    /* every slot is maxed: nothing to pick, so a level-up just repairs one HP */
+    /* nothing left to pick: a level-up just repairs one HP */
     G.pending--;G.hp=Math.min(MAXHP,G.hp+1);hud();
     if(G.pending>0)openChoices(false);
     return;
   }
   G.state='choose';G.first=!!first;G.choices=ch;
-  const cards=G.choices.map((c,i)=>{
-    if(c.id==='heal')return `<button class="card" data-i="${i}"><span class="chip" style="background:var(--danger)">+</span><span class="t">수리<em>HP +1</em></span><span class="d">무너진 방어선을 고쳐요 (최대 ${MAXHP})</span></button>`;
-    const a=AB[c.id];
-    return `<button class="card" data-i="${i}"><span class="chip" style="background:${a.c}">${a.n[0]}</span><span class="t">${a.n}<em>${c.kind==='new'?'새 능력':'Lv '+(c.to-1)+' → '+c.to}</em></span><span class="d">${a.d[c.to-1]}</span></button>`;
-  }).join('');
-  show(`<h2>${first?'첫 능력을 고르세요':'레벨 업!'}</h2><div class="cards">${cards}</div><p class="hint">숫자키 1·2·3으로도 고를 수 있어요</p>`);
+  show(`<h2>${first?'첫 능력을 고르세요':'레벨 업!'}</h2><div class="cards">${ch.map(cardHtml).join('')}</div><p class="hint">숫자키 1·2·3으로도 고를 수 있어요</p>${recipesHtml()}`);
+}
+function combine(c){
+  const ia=G.slots.findIndex(s=>s.kind==='single'&&s.id===c.a);
+  const ib=G.slots.findIndex(s=>s.kind==='single'&&s.id===c.b);
+  if(ia<0||ib<0)return;
+  let slot;
+  if(c.kind==='evo'){
+    G.evo[c.id]=true;slot={kind:'evo',id:c.id,ids:[c.a,c.b]};
+    G.banner={text:'진화! '+EVO[c.id].n,c:EVO[c.id].c,t:1.8};
+  }else{
+    slot={kind:'fused',ids:[c.a,c.b]};
+    G.banner={text:'합성! '+AB[c.a].n+' + '+AB[c.b].n,c:col.accent,t:1.8};
+  }
+  G.slots[Math.min(ia,ib)]=slot;
+  G.slots.splice(Math.max(ia,ib),1);
 }
 function pick(i){
   if(G.state!=='choose')return;
   const c=G.choices[i];if(!c)return;
-  if(c.id==='heal')G.hp=Math.min(MAXHP,G.hp+1);
-  else if(c.kind==='new'){G.ab[c.id]=1;G.order.push(c.id);}
-  else G.ab[c.id]++;
+  if(c.kind==='heal')G.hp=Math.min(MAXHP,G.hp+1);
+  else if(c.kind==='new'){G.ab[c.id]=1;G.slots.push({kind:'single',id:c.id});}
+  else if(c.kind==='up')G.ab[c.id]++;
+  else combine(c);
   if(!G.first)G.pending--;
   G.choices=null;hud();
   G.state='play';hide();
@@ -290,15 +404,16 @@ function breach(row){
 }
 function over(){
   G.state='over';G.overAt=performance.now();
-  show(`<h1>게임 오버</h1><p class="stat">Lv ${G.lv} · 벽돌 ${G.kills}개 · ${fmt(G.t)}</p><button class="btn" id="again">다시 하기</button>`);
+  const evos=G.slots.filter(s=>s.kind==='evo').map(s=>EVO[s.id].n);
+  show(`<h1>게임 오버</h1><p class="stat">Lv ${G.lv} · 벽돌 ${G.kills}개 · ${fmt(G.t)}</p>${evos.length?`<p class="sub">진화: ${evos.join(', ')}</p>`:''}<button class="btn" id="again">다시 하기</button>`);
   $('again').onclick=()=>{if(performance.now()-G.overAt>600)start();};
 }
 function showTitle(){
-  show(`<h1>회전포 벽돌깨기</h1><p class="sub">마우스나 손가락으로 방향을 잡으면<br>포가 돌아가며 공을 쏩니다.<br>(키보드는 ← →)<br><br>내려오는 벽돌을 부수고 레벨을 올려<br>능력 슬롯 4칸을 채우세요.<br>벽돌이 아래 선에 닿으면 HP가 줄어요.</p><button class="btn" id="go">시작</button>`);
+  show(`<h1>회전포 벽돌깨기</h1><p class="sub">마우스나 손가락으로 방향을 잡으면<br>포가 돌아가며 공을 쏩니다.<br>(키보드는 ← →)<br><br>내려오는 벽돌을 부수고 레벨을 올려<br>능력 슬롯 4칸을 채우세요.<br>Lv3 능력 두 개는 합성하거나 진화해요.<br>벽돌이 아래 선에 닿으면 HP가 줄어요.</p><button class="btn" id="go">시작</button>`);
   $('go').onclick=start;
 }
 function start(){reset();hud();openChoices(true);}
-function show(html){ov.innerHTML=html;ov.hidden=false;const b=ov.querySelector('button');if(b)b.focus({preventScroll:true});}
+function show(html){ov.innerHTML='<div class="ovin">'+html+'</div>';ov.hidden=false;ov.scrollTop=0;const b=ov.querySelector('button');if(b)b.focus({preventScroll:true});}
 function hide(){ov.hidden=true;ov.innerHTML='';}
 
 /* ---------- update ---------- */
@@ -306,6 +421,7 @@ function update(dt){
   G.flash=Math.max(0,G.flash-dt);
   if(G.state!=='play')return;
   G.t+=dt;
+  if(G.banner&&(G.banner.t-=dt)<=0)G.banner=null;
   const kd=(keys.right?1:0)-(keys.left?1:0);
   if(kd)aim=clamp(aim+kd*2.2*dt,-MAXA,MAXA);
   angle+=(aim-angle)*Math.min(1,dt*20);
@@ -313,11 +429,15 @@ function update(dt){
   G.fireT-=dt;
   const iv=.42/(lvl('rapid')?pv('rapid','mul'):1);
   while(G.fireT<=0){fire();G.fireT+=iv;}
+  if(evo('railgun')&&(G.railT-=dt)<=0){G.railT=2;railgun();}
 
-  const dy=Math.min(60,12+G.t*.11)*dt;
-  for(const b of G.bricks)b.y+=dy;
-  G.topY+=dy;
-  while(G.topY>0){const ny=G.topY-ROW;spawnRow(ny);G.topY=ny;}
+  if(G.freezeT>0)G.freezeT-=dt;
+  else{
+    const dy=Math.min(60,12+G.t*.11)*dt;
+    for(const b of G.bricks)b.y+=dy;
+    G.topY+=dy;
+    while(G.topY>0){const ny=G.topY-ROW;spawnRow(ny);G.topY=ny;}
+  }
 
   for(const b of G.bricks){
     if(b.dead)continue;
@@ -326,9 +446,11 @@ function update(dt){
     if(b.burn>0){
       b.burn-=dt;b.burnAcc+=b.burnDps*dt;
       if(b.burnAcc>=1){const d=Math.floor(b.burnAcc);b.burnAcc-=d;hurt(b,d);}
+      if(b.burn<=0){b.burnDps=0;b.ff=false;}
     }
   }
   for(let i=0;i<G.balls.length;i++)stepBall(G.balls[i],dt);
+  for(let n=0;G.boom.length&&n<24;n++)explode(G.boom.shift());
   G.balls=G.balls.filter(b=>!b.dead);
   G.bricks=G.bricks.filter(b=>!b.dead);
 
@@ -338,6 +460,10 @@ function update(dt){
   G.parts=G.parts.filter(p=>p.life>0);
   for(const a of G.arcs)a.life-=dt;
   G.arcs=G.arcs.filter(a=>a.life>0);
+  for(const r of G.rings)r.life-=dt;
+  G.rings=G.rings.filter(r=>r.life>0);
+  for(const b of G.beams)b.life-=dt;
+  G.beams=G.beams.filter(b=>b.life>0);
 
   if(G.state==='play'&&G.pending>0)openChoices(false);
 }
@@ -364,11 +490,23 @@ function draw(){
     ctx.fillStyle=TIER[tier(b.hp)];ctx.fill();
     if(b.chill>0){ctx.fillStyle='rgba(191,234,255,.4)';ctx.fill();}
     if(b.flash>0){ctx.fillStyle='rgba(255,255,255,'+(b.flash*6).toFixed(2)+')';ctx.fill();}
-    if(b.burn>0){ctx.strokeStyle='#ff9a5c';ctx.lineWidth=2;ctx.stroke();}
+    if(b.burn>0){ctx.strokeStyle=b.ff?'#ff8fd0':'#ff9a5c';ctx.lineWidth=2;ctx.stroke();}
     ctx.fillStyle=col.ink;
     ctx.fillText(Math.ceil(b.hp),b.x+b.w/2,b.y+b.h/2+1);
   }
+  if(G.freezeT>0){ctx.fillStyle='rgba(168,230,255,'+(Math.min(1,G.freezeT)*.12).toFixed(3)+')';ctx.fillRect(0,0,W,LINE);}
 
+  for(const bm of G.beams){
+    const a=bm.life/.25;
+    ctx.strokeStyle='rgba(215,184,255,'+(a*.5).toFixed(2)+')';ctx.lineWidth=10;
+    ctx.beginPath();ctx.moveTo(bm.x1,bm.y1);ctx.lineTo(bm.x2,bm.y2);ctx.stroke();
+    ctx.strokeStyle='rgba(255,255,255,'+a.toFixed(2)+')';ctx.lineWidth=2.5;ctx.stroke();
+  }
+  for(const r of G.rings){
+    const k=1-r.life/.3;
+    ctx.strokeStyle='rgba(255,179,71,'+(1-k).toFixed(2)+')';ctx.lineWidth=3;
+    ctx.beginPath();ctx.arc(r.x,r.y,10+48*k,0,7);ctx.stroke();
+  }
   ctx.lineWidth=2;
   for(const a of G.arcs){
     ctx.strokeStyle='rgba(255,224,102,'+(a.life/.14).toFixed(2)+')';
@@ -404,23 +542,31 @@ function draw(){
   ctx.textAlign='left';ctx.fillText(fmt(G.t),10,H-14);
   ctx.textAlign='right';ctx.fillText('벽돌 '+G.kills,W-10,H-14);
 
+  if(G.banner){
+    ctx.globalAlpha=clamp(G.banner.t,0,1);
+    ctx.font='30px "Do Hyeon","Noto Sans KR",system-ui,sans-serif';ctx.textAlign='center';
+    ctx.lineWidth=6;ctx.strokeStyle=col.ink;ctx.strokeText(G.banner.text,W/2,H*.42);
+    ctx.fillStyle=G.banner.c;ctx.fillText(G.banner.text,W/2,H*.42);
+    ctx.globalAlpha=1;
+  }
   if(G.flash>0){ctx.fillStyle='rgba(255,107,129,'+(G.flash*.9).toFixed(2)+')';ctx.fillRect(0,0,W,H);}
 }
 
 /* ---------- hud ---------- */
 let lastXp=-1;
+function slotHtml(s){
+  if(!s)return '<div class="slot empty"><span class="n">빈 슬롯</span></div>';
+  if(s.kind==='evo'){const E=EVO[s.id];return `<div class="slot evo" style="--c:${E.c}"><span class="n">${E.n}</span><span class="tag">진화</span></div>`;}
+  if(s.kind==='fused'){const A=AB[s.ids[0]],B=AB[s.ids[1]];return `<div class="slot"><span class="n sm"><span style="color:${A.c}">${A.n}</span>+<span style="color:${B.c}">${B.n}</span></span><span class="tag">합성</span></div>`;}
+  const a=AB[s.id],l=G.ab[s.id];
+  return `<div class="slot" style="--c:${a.c}"><span class="n">${a.n}</span><span class="pips">${[1,2,3].map(k=>'<i'+(k<=l?' class="on"':'')+'></i>').join('')}</span></div>`;
+}
 function hud(){
   lastXp=-1;
   $('lv').textContent=G.lv;
   let h='';for(let i=0;i<MAXHP;i++)h+='<b'+(i<G.hp?'':' class="off"')+'></b>';
   $('hp').innerHTML=h;
-  let s='';
-  for(let i=0;i<SLOTS;i++){
-    const id=G.order[i];
-    if(!id){s+='<div class="slot empty"><span class="n">빈 슬롯</span></div>';continue;}
-    const a=AB[id],l=G.ab[id];
-    s+=`<div class="slot" style="--c:${a.c}"><span class="n">${a.n}</span><span class="pips">${[1,2,3].map(k=>'<i'+(k<=l?' class="on"':'')+'></i>').join('')}</span></div>`;
-  }
+  let s='';for(let i=0;i<SLOTS;i++)s+=slotHtml(G.slots[i]);
   $('slots').innerHTML=s;
 }
 function hudFrame(){
@@ -437,6 +583,7 @@ function aimAt(e){
 addEventListener('pointermove',aimAt);
 $('board').addEventListener('pointerdown',aimAt);
 ov.addEventListener('click',e=>{const c=e.target.closest('.card');if(c)pick(+c.dataset.i);});
+ov.addEventListener('toggle',e=>{if(e.target.classList&&e.target.classList.contains('recipes'))recipesOpen=e.target.open;},true);
 addEventListener('keydown',e=>{
   if(e.code==='ArrowLeft'||e.code==='KeyA'){keys.left=true;if(G.state==='play')e.preventDefault();}
   else if(e.code==='ArrowRight'||e.code==='KeyD'){keys.right=true;if(G.state==='play')e.preventDefault();}
