@@ -9,7 +9,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Do+Hyeon&family=Noto+Sans+KR:wght@400;700&display=swap" rel="stylesheet">
 <style>
-/* layout: one-screen portrait game. HUD on top, board centered, ability slots below.
+/* layout: one-screen portrait game. HUD on top, board centered, ball slots then passive slots below.
    deliberately single-theme (dark ink board): the game commits to one look. */
 :root{
   color-scheme: dark;
@@ -22,12 +22,13 @@
 html,body{height:100%}
 body{
   margin:0;background:var(--bg);color:var(--fg);font-family:var(--font-body);overflow:hidden;
-  padding-block:10px;
+  padding-top:max(10px,env(safe-area-inset-top,0px));
+  padding-bottom:max(10px,env(safe-area-inset-bottom,0px));
   padding-left:max(16px,env(safe-area-inset-left,0px));
   padding-right:max(16px,env(safe-area-inset-right,0px));
 }
 #app{height:100%;min-height:0;display:flex;flex-direction:column;align-items:center;gap:8px}
-#hud,#slots{width:var(--bw,360px);flex:none}
+#hud,#slots,#pslots{width:var(--bw,360px);flex:none}
 #hud{display:flex;align-items:center;gap:10px}
 .lv{font-family:var(--font-display);font-size:20px;white-space:nowrap;font-variant-numeric:tabular-nums}
 .lv small{color:var(--muted);font-size:12px;margin-right:4px;letter-spacing:.08em}
@@ -52,7 +53,9 @@ h2{font-family:var(--font-display);font-weight:400;font-size:24px;margin:0}
 .card{display:grid;grid-template-columns:44px 1fr;gap:2px 12px;align-items:center;text-align:left;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px 12px;color:var(--fg);cursor:pointer;font-family:var(--font-body)}
 .card:hover{border-color:var(--accent)}
 .card.combo{background:var(--panel2);border-color:var(--accent)}
-.chip{grid-row:span 2;width:44px;height:44px;border-radius:8px;display:grid;place-items:center;font-family:var(--font-display);font-size:22px;color:var(--ink)}
+.chip{grid-row:span 2;width:44px;height:44px;display:grid;place-items:center;font-family:var(--font-display);font-size:22px;color:var(--ink)}
+.chip.ball{border-radius:50%}
+.chip.pas{border-radius:8px}
 .card .t{font-family:var(--font-display);font-size:18px}
 .card .t em{font-style:normal;color:var(--accent);font-size:12.5px;margin-left:8px;font-family:var(--font-body)}
 .card .d{font-size:12.5px;color:var(--muted);line-height:1.45}
@@ -65,9 +68,12 @@ h2{font-family:var(--font-display);font-weight:400;font-size:24px;margin:0}
 .recipes ul{margin:8px 0 0;padding:10px 12px;list-style:none;display:grid;gap:4px;background:var(--panel);border:1px solid var(--line);border-radius:8px}
 .recipes b{font-family:var(--font-display);font-weight:400;font-size:14px}
 #slots{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+#pslots{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
 .slot{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:6px 4px;text-align:center;min-height:46px;display:flex;flex-direction:column;gap:6px;align-items:center;justify-content:center;min-width:0}
-.slot .n{font-family:var(--font-display);font-size:15px;line-height:1;color:var(--c,var(--fg));white-space:nowrap}
-.slot .n.sm{font-size:12.5px}
+#pslots .slot{min-height:34px;flex-direction:row;gap:8px;border-style:dashed}
+.slot .n{font-family:var(--font-display);font-size:15px;line-height:1;color:var(--c,var(--fg));white-space:nowrap;display:flex;align-items:center;gap:5px}
+.slot .n.sm{font-size:12.5px;gap:2px}
+.slot .dot{width:9px;height:9px;border-radius:50%;background:var(--c,var(--fg));flex:none}
 .slot .tag{font-size:10px;line-height:1;letter-spacing:.08em;color:var(--muted)}
 .slot.evo{border-color:var(--c);box-shadow:0 0 12px -3px var(--c)}
 .slot.evo .tag{color:var(--c)}
@@ -91,7 +97,8 @@ h2{font-family:var(--font-display);font-weight:400;font-size:24px;margin:0}
       <div id="ov"></div>
     </div>
   </div>
-  <footer id="slots" aria-label="능력 슬롯"></footer>
+  <footer id="slots" aria-label="공 슬롯"></footer>
+  <footer id="pslots" aria-label="패시브 슬롯"></footer>
 </div>
 
 <script>
@@ -99,7 +106,8 @@ h2{font-family:var(--font-display);font-weight:400;font-size:24px;margin:0}
 'use strict';
 /* ---------- constants ---------- */
 const W=360,H=640,CX=180,CY=590,LINE=548,COLS=8,CW=W/COLS,ROW=32,BH=ROW-4;
-const R=5,MAXBALLS=80,MAXHP=5,SLOTS=4,MAXA=1.35,DPR=2,BALL_SP=380;
+const R=5,SLOTS=4,PSLOTS=3,BASE_BALLS=4,BASE_HP=5,MAXCLONES=12,MAXA=1.35,DPR=2;
+const BALL_SP=380,LAUNCH_IV=.3,BASIC_C='#fff3d6';
 const TIER=['#6c8cff','#8f7cff','#c36cff','#ff6cc3','#ff7a6c','#ffa84d'];
 const $=id=>document.getElementById(id);
 const cv=$('cv'),ctx=cv.getContext('2d'),ov=$('ov'),stage=$('stage');
@@ -108,36 +116,49 @@ const cs=getComputedStyle(document.documentElement);
 const C=n=>cs.getPropertyValue(n).trim();
 const col={bg:C('--bg'),line:C('--line'),fg:C('--fg'),muted:C('--muted'),mint:C('--mint'),danger:C('--danger'),ink:C('--ink'),accent:C('--accent')};
 
-/* ---------- abilities ---------- */
+/* ---------- ball abilities: each one is a colored ball in a ball slot ---------- */
 const AB={
-  split:{n:'분열',c:'#5eead4',d:['벽돌을 5번 맞힐 때마다 공이 1개 복제돼요','벽돌을 4번 맞힐 때마다 공이 1개 복제돼요','벽돌을 3번 맞힐 때마다 공이 2개 복제돼요']},
-  burn:{n:'불꽃',c:'#ff9a5c',d:['맞힌 벽돌이 3초 동안 초당 1 피해를 입어요','맞힌 벽돌이 3초 동안 초당 2 피해를 입어요','맞힌 벽돌이 4초 동안 초당 3 피해를 입어요']},
-  bolt:{n:'번개',c:'#ffe066',d:['25% 확률로 근처 벽돌 1개에 번개가 튀어요','40% 확률로 근처 벽돌 2개에 번개가 튀어요','55% 확률로 근처 벽돌 3개에 번개가 튀어요']},
-  pierce:{n:'관통',c:'#c9a7ff',d:['25% 확률로 벽돌을 뚫고 지나가요','45% 확률로 벽돌을 뚫고 지나가요','65% 확률로 벽돌을 뚫고 지나가요']},
-  rapid:{n:'연사',c:'#74a7ff',d:['발사 속도 +25%','발사 속도 +60%','발사 속도 +110%']},
-  power:{n:'강타',c:'#ff7a8a',d:['공 피해 +1','공 피해 +2','공 피해 +3']},
-  chill:{n:'냉기',c:'#bfeaff',d:['맞힌 벽돌이 3초 동안 받는 피해 +40%','맞힌 벽돌이 3초 동안 받는 피해 +70%','맞힌 벽돌이 3초 동안 받는 피해 +100%']}
+  split:{n:'분열',c:'#5eead4',d:['이 공이 벽돌을 4번 맞힐 때마다 복제 공이 1개 생겨요','벽돌을 3번 맞힐 때마다 복제 공이 1개 생겨요','벽돌을 3번 맞힐 때마다 복제 공이 2개 생겨요']},
+  burn:{n:'불꽃',c:'#ff9a5c',d:['맞힌 벽돌이 3초 동안 초당 2 피해를 입어요','맞힌 벽돌이 3초 동안 초당 3 피해를 입어요','맞힌 벽돌이 4초 동안 초당 5 피해를 입어요']},
+  bolt:{n:'번개',c:'#ffe066',d:['맞힐 때 50% 확률로 근처 벽돌 1개에 번개가 튀어요','맞힐 때 70% 확률로 근처 벽돌 2개에 번개가 튀어요','맞힐 때마다 근처 벽돌 3개에 번개가 튀어요']},
+  pierce:{n:'관통',c:'#c9a7ff',d:['40% 확률로 벽돌을 뚫고 지나가요','60% 확률로 벽돌을 뚫고 지나가요','80% 확률로 벽돌을 뚫고 지나가요']},
+  chill:{n:'냉기',c:'#bfeaff',d:['맞힌 벽돌이 4초 동안 받는 피해 +50%','맞힌 벽돌이 4초 동안 받는 피해 +80%','맞힌 벽돌이 4초 동안 받는 피해 +120%']}
 };
 const P={
-  split:{every:[5,4,3],n:[1,1,2]},
-  burn:{dps:[1,2,3],dur:[3,3,4]},
-  bolt:{p:[.25,.4,.55],k:[1,2,3]},
-  pierce:{p:[.25,.45,.65]},
-  rapid:{mul:[1.25,1.6,2.1]},
-  power:{add:[1,2,3]},
-  chill:{bonus:[.4,.7,1],dur:[3,3,3]}
+  split:{every:[4,3,3],n:[1,1,2]},
+  burn:{dps:[2,3,5],dur:[3,3,4]},
+  bolt:{p:[.5,.7,1],k:[1,2,3]},
+  pierce:{p:[.4,.6,.8]},
+  chill:{bonus:[.5,.8,1.2],dur:[4,4,4]}
 };
-/* evolutions: two specific Lv3 abilities become one slot with both effects plus a new one */
+/* passives: global upgrades in their own slots */
+const PA={
+  power:{n:'강타',c:'#ff7a8a',d:['모든 공 피해 +1','모든 공 피해 +2','모든 공 피해 +3']},
+  rapid:{n:'연사',c:'#74a7ff',d:['공 속도와 발사 속도 +15%','공 속도와 발사 속도 +30%','공 속도와 발사 속도 +50%']},
+  mag:{n:'탄창',c:'#e8e2c8',d:['기본 공 +1개','기본 공 +2개','기본 공 +3개']},
+  study:{n:'학습',c:'#9fe870',d:['경험치 +20%','경험치 +40%','경험치 +60%']},
+  wall:{n:'방벽',c:'#ff9fb0',d:['최대 HP +1, HP 1 회복','최대 HP +2, HP 1 회복','최대 HP +3, HP 1 회복']}
+};
+const PP={
+  power:{add:[1,2,3]},
+  rapid:{mul:[1.15,1.3,1.5]},
+  mag:{add:[1,2,3]},
+  study:{mul:[1.2,1.4,1.6]},
+  wall:{add:[1,2,3]}
+};
+/* evolutions: two specific Lv3 balls merge into one ball with both effects plus a new one */
 const EVO={
   fireworks:{n:'불꽃놀이',c:'#ffb347',from:['burn','split'],d:'불타는 벽돌이 부서지면 폭발해 주변 벽돌에 피해를 주고 불을 옮겨요'},
-  barrage:{n:'탄막',c:'#7ef0c9',from:['split','rapid'],d:'한 번에 공 3개를 부채꼴로 쏴요'},
-  railgun:{n:'레일건',c:'#d7b8ff',from:['bolt','pierce'],d:'2초마다 조준 방향의 벽돌을 모두 꿰뚫는 광선을 쏴요'},
-  glacier:{n:'빙결',c:'#a8e6ff',from:['power','chill'],d:'벽돌을 20번 맞힐 때마다 모든 벽돌이 2초 동안 얼어서 멈춰요'},
-  frostfire:{n:'서리불꽃',c:'#ff8fd0',from:['burn','chill'],d:'맞힌 벽돌이 5초 동안 초당 6 피해를 입어요'},
-  thunder:{n:'천둥',c:'#fff07a',from:['bolt','power'],d:'맞힐 때마다 근처 벽돌 4개에 번개가 떨어져요'}
+  frostfire:{n:'서리불꽃',c:'#ff8fd0',from:['burn','chill'],d:'맞힌 벽돌이 5초 동안 초당 8 피해를 입어요'},
+  railgun:{n:'레일건',c:'#d7b8ff',from:['bolt','pierce'],d:'이 공을 쏠 때마다 조준 방향의 벽돌을 모두 꿰뚫는 광선이 함께 나가요'},
+  thunder:{n:'천둥',c:'#fff07a',from:['bolt','split'],d:'맞힐 때마다 근처 벽돌 4개에 번개가 떨어져요'},
+  glacier:{n:'빙결',c:'#a8e6ff',from:['chill','pierce'],d:'이 공이 벽돌을 12번 맞힐 때마다 모든 벽돌이 2초 동안 얼어서 멈춰요'},
+  barrage:{n:'탄막',c:'#7ef0c9',from:['split','pierce'],d:'이 공을 쏠 때마다 복제 공 2개가 부채꼴로 함께 나가요'}
 };
 const lvl=id=>G.ab[id]||0;
 const pv=(id,k)=>P[id][k][lvl(id)-1];
+const plv=id=>G.pa[id]||0;
+const pp=(id,k,dflt)=>plv(id)?PP[id][k][plv(id)-1]:dflt;
 const evo=id=>!!G.evo[id];
 function recipe(a,b){
   for(const id in EVO){const f=EVO[id].from;if((f[0]===a&&f[1]===b)||(f[0]===b&&f[1]===a))return id;}
@@ -147,7 +168,7 @@ function recipe(a,b){
 /* ---------- helpers ---------- */
 const clamp=(v,a,b)=>v<a?a:v>b?b:v;
 const rnd=()=>Math.random();
-const xpNeed=l=>Math.round(8*Math.pow(1.38,l-1));
+const xpNeed=l=>Math.round(6*Math.pow(1.3,l-1));
 const fmt=t=>Math.floor(t/60)+':'+String(Math.floor(t%60)).padStart(2,'0');
 const tier=hp=>hp<4?0:hp<8?1:hp<13?2:hp<20?3:hp<30?4:5;
 
@@ -156,37 +177,60 @@ let G,aim=0,angle=0,recipesOpen=false;
 const keys={left:false,right:false};
 
 function reset(){
-  G={state:'title',t:0,lv:1,xp:0,need:xpNeed(1),hp:MAXHP,kills:0,
+  G={state:'title',t:0,lv:1,xp:0,need:xpNeed(1),hp:BASE_HP,maxHp:BASE_HP,kills:0,
      balls:[],bricks:[],parts:[],arcs:[],rings:[],beams:[],boom:[],
-     ab:{},evo:{},slots:[],fireT:0,rowN:0,topY:8,
-     railT:2,glHits:0,freezeT:0,banner:null,
-     pending:0,choices:null,first:false,flash:0,overAt:0};
+     ab:{},pa:{},evo:{},slots:[],pslots:[],queue:[],launchT:0,rowN:0,topY:8,
+     freezeT:0,banner:null,pending:0,choices:null,first:false,flash:0,overAt:0};
   for(let i=4;i>=0;i--)spawnRow(8+i*ROW);
+  syncLoadout();
 }
 
 function spawnRow(y){
   /* gentle early, steeper late so evolved builds still end eventually */
-  const n=G.rowN++,base=2+n*.3+n*n*.0016;
+  const n=G.rowN++,base=2+n*.22+n*n*.001;
   const cols=[];
-  for(let c=0;c<COLS;c++)if(rnd()<.62)cols.push(c);
+  for(let c=0;c<COLS;c++)if(rnd()<.6)cols.push(c);
   while(cols.length<3){const c=(rnd()*COLS)|0;if(!cols.includes(c))cols.push(c);}
   for(const c of cols){
     const hp=Math.max(1,Math.round(base*(.7+rnd()*.7)));
-    G.bricks.push({x:c*CW+2,y,w:CW-4,h:BH,hp,max:hp,row:n,flash:0,burn:0,burnDps:0,burnAcc:0,ff:false,chill:0,dead:false});
+    G.bricks.push({x:c*CW+2,y,w:CW-4,h:BH,hp,max:hp,row:n,flash:0,burn:0,burnDps:0,burnAcc:0,ff:false,chill:0,chillBonus:0,dead:false});
   }
 }
 
-/* ---------- combat ---------- */
-function spawnBall(x,y,dx,dy,clone){
-  G.balls.push({x,y,vx:dx*BALL_SP,vy:dy*BALL_SP,sp:BALL_SP,clone,hits:0,inside:new Set(),dead:false});
+/* ---------- loadout: the balls the turret owns ---------- */
+const slotKey=s=>s.kind==='single'?s.id:s.kind==='evo'?'e:'+s.id:'f:'+s.ids.join('+');
+function loadoutKeys(){
+  const k=[];
+  for(let i=0;i<BASE_BALLS+pp('mag','add',0);i++)k.push('b'+i);
+  for(const s of G.slots)k.push(slotKey(s));
+  return k;
 }
-function fire(){
-  const fan=evo('barrage')?[-.2,0,.2]:[0];
-  for(const o of fan){
-    if(G.balls.length>=MAXBALLS)return;
-    const a=angle+o+(rnd()-.5)*.04;
-    spawnBall(CX+Math.sin(a)*26,CY-Math.cos(a)*26,Math.sin(a),-Math.cos(a),false);
-  }
+function syncLoadout(){
+  const keys=loadoutKeys();
+  G.queue=G.queue.filter(k=>keys.includes(k));
+  const live=new Set([...G.queue,...G.balls.filter(b=>!b.clone).map(b=>b.key)]);
+  for(const k of keys)if(!live.has(k))G.queue.push(k);
+}
+function fxOf(key){
+  if(key[0]==='b'&&key.length<4&&/^b\d+$/.test(key))return{ids:[],evo:null,c1:BASIC_C,c2:BASIC_C};
+  if(key.startsWith('e:')){const id=key.slice(2),E=EVO[id];return{ids:E.from.slice(),evo:id,c1:E.c,c2:E.c};}
+  if(key.startsWith('f:')){const ids=key.slice(2).split('+');return{ids,evo:null,c1:AB[ids[0]].c,c2:AB[ids[1]].c};}
+  return{ids:[key],evo:null,c1:AB[key].c,c2:AB[key].c};
+}
+
+/* ---------- combat ---------- */
+function spawnBall(x,y,a,key,fx,clone){
+  const sp=BALL_SP*pp('rapid','mul',1);
+  G.balls.push({x,y,vx:Math.sin(a)*sp,vy:-Math.cos(a)*sp,sp,key,ids:fx.ids,evo:fx.evo,c1:fx.c1,c2:fx.c2,
+    clone,hits:0,glHits:0,inside:new Set(),dead:false});
+}
+const cloneCount=()=>{let n=0;for(const b of G.balls)if(b.clone)n++;return n;};
+function launch(key){
+  const fx=fxOf(key),a=angle+(rnd()-.5)*.03;
+  const x=CX+Math.sin(a)*26,y=CY-Math.cos(a)*26;
+  spawnBall(x,y,a,key,fx,false);
+  if(fx.evo==='railgun')railgun();
+  if(fx.evo==='barrage')for(const o of [-.22,.22])if(cloneCount()<MAXCLONES)spawnBall(x,y,a+o,key,fx,true);
 }
 function fix(b){
   const m=b.sp*.24;
@@ -196,9 +240,10 @@ function fix(b){
   }
 }
 function split(b,n){
-  for(let i=0;i<n&&G.balls.length<MAXBALLS;i++){
-    const a=Math.atan2(b.vx,-b.vy)+(n===1?(rnd()<.5?-1:1)*(.35+rnd()*.4):(i===0?-1:1)*(.35+rnd()*.4));
-    spawnBall(b.x,b.y,Math.sin(a),-Math.cos(a),true);
+  const fx={ids:b.ids,evo:b.evo,c1:b.c1,c2:b.c2};
+  for(let i=0;i<n&&cloneCount()<MAXCLONES;i++){
+    const a=Math.atan2(b.vx,-b.vy)+(n===1?(rnd()<.5?-1:1):(i===0?-1:1))*(.35+rnd()*.4);
+    spawnBall(b.x,b.y,a,b.key,fx,true);
   }
 }
 function ignite(br,dur,dps){br.burn=Math.max(br.burn,dur);br.burnDps=Math.max(br.burnDps,dps);}
@@ -209,7 +254,7 @@ function hurt(br,d){
 }
 function kill(br){
   br.dead=true;G.kills++;
-  gainXp(Math.max(1,Math.round(br.max*.35)));
+  gainXp(Math.max(1,Math.round(br.max*.5*pp('study','mul',1))));
   const cx=br.x+br.w/2,cy=br.y+br.h/2;
   if(evo('fireworks')&&br.burn>0)G.boom.push({x:cx,y:cy,d:Math.max(3,br.max*.5)});
   if(G.parts.length<240){
@@ -224,31 +269,29 @@ function bolt(from,k,d,range){
     .sort((a,b)=>a.d-b.d).slice(0,k);
   for(const o of near){
     G.arcs.push({x1:fx,y1:fy,x2:o.b.x+o.b.w/2,y2:o.b.y+o.b.h/2,life:.14});
-    hurt(o.b,Math.max(1,d*.5));
+    hurt(o.b,Math.max(1,d*.6));
   }
 }
-function onHit(ball,br){
-  const base=1+(lvl('power')?pv('power','add'):0);
-  let dmg=ball.clone?Math.max(1,base*.6):base;
-  if(br.chill>0&&lvl('chill'))dmg*=1+pv('chill','bonus');
+function onHit(b,br){
+  const has=id=>b.ids.includes(id);
+  let dmg=(1+pp('power','add',0))*(b.clone?.6:1);
+  if(br.chill>0)dmg*=1+br.chillBonus;
   /* statuses land before the damage so a killing blow can already set off fireworks */
-  if(evo('frostfire')){ignite(br,5,6);br.ff=true;}
-  else if(lvl('burn'))ignite(br,pv('burn','dur'),pv('burn','dps'));
-  if(lvl('chill'))br.chill=Math.max(br.chill,pv('chill','dur'));
+  if(b.evo==='frostfire'){ignite(br,5,8);br.ff=true;}
+  else if(has('burn'))ignite(br,pv('burn','dur'),pv('burn','dps'));
+  if(has('chill')){br.chill=Math.max(br.chill,pv('chill','dur'));br.chillBonus=Math.max(br.chillBonus,pv('chill','bonus'));}
   hurt(br,dmg);
-  if(evo('thunder'))bolt(br,4,dmg,130);
-  else if(lvl('bolt')&&rnd()<pv('bolt','p'))bolt(br,pv('bolt','k'),dmg,110);
-  if(lvl('split')&&!ball.clone){
-    ball.hits++;
-    if(ball.hits>=pv('split','every')){ball.hits=0;split(ball,pv('split','n'));}
-  }
-  if(evo('glacier')&&++G.glHits>=20){
-    G.glHits=0;G.freezeT=2;
-    for(const b of G.bricks)if(!b.dead)b.chill=Math.max(b.chill,2);
+  if(b.evo==='thunder')bolt(br,4,dmg,130);
+  else if(has('bolt')&&rnd()<pv('bolt','p'))bolt(br,pv('bolt','k'),dmg,110);
+  if(has('split')&&!b.clone&&++b.hits>=pv('split','every')){b.hits=0;split(b,pv('split','n'));}
+  if(b.evo==='glacier'&&!b.clone&&++b.glHits>=12){
+    b.glHits=0;G.freezeT=2;
+    for(const o of G.bricks)if(!o.dead){o.chill=Math.max(o.chill,2);o.chillBonus=Math.max(o.chillBonus,pv('chill','bonus'));}
   }
 }
 function stepBall(b,dt){
   const n=Math.max(1,Math.ceil(b.sp*dt/3)),h=dt/n,r=b.clone?4:R;
+  const pierce=b.ids.includes('pierce')?pv('pierce','p'):0;
   for(let s=0;s<n&&!b.dead;s++){
     b.x+=b.vx*h;b.y+=b.vy*h;
     if(b.x<r){b.x=r;b.vx=Math.abs(b.vx);fix(b);}
@@ -261,7 +304,7 @@ function stepBall(b,dt){
       if(d2>=r*r){b.inside.delete(br);continue;}
       if(b.inside.has(br))continue;
       onHit(b,br);
-      if(lvl('pierce')&&rnd()<pv('pierce','p')){b.inside.add(br);continue;}
+      if(pierce&&rnd()<pierce){b.inside.add(br);continue;}
       let nx,ny;
       if(d2>1e-6){const d=Math.sqrt(d2);nx=dx/d;ny=dy/d;b.x=cx+nx*r;b.y=cy+ny*r;}
       else{
@@ -277,7 +320,11 @@ function stepBall(b,dt){
       break;
     }
   }
-  if(b.y>H+10)b.dead=true;
+  if(b.y>H+10){
+    b.dead=true;
+    /* a fallen ball goes back to the turret, unless it was merged away meanwhile */
+    if(!b.clone&&loadoutKeys().includes(b.key)&&!G.queue.includes(b.key))G.queue.push(b.key);
+  }
 }
 /* ray vs padded brick (slab test) */
 function rayHits(x0,y0,dx,dy,tMax,b,pad){
@@ -297,17 +344,16 @@ function railgun(){
   let tMax=2000;
   if(dx>0)tMax=Math.min(tMax,(W-x0)/dx);else if(dx<0)tMax=Math.min(tMax,-x0/dx);
   if(dy<0)tMax=Math.min(tMax,-y0/dy);
-  const dmg=8+G.rowN*.25+(lvl('power')?pv('power','add')*2:0);
+  const dmg=8+G.rowN*.25+pp('power','add',0)*2;
   for(const b of G.bricks)if(!b.dead&&rayHits(x0,y0,dx,dy,tMax,b,4))hurt(b,dmg);
   G.beams.push({x1:x0,y1:y0,x2:x0+dx*tMax,y2:y0+dy*tMax,life:.25});
 }
 function explode(e){
   G.rings.push({x:e.x,y:e.y,life:.3});
-  const dps=lvl('burn')?pv('burn','dps'):3;
   for(const b of G.bricks){
     if(b.dead)continue;
     const dx=b.x+b.w/2-e.x,dy=b.y+b.h/2-e.y;
-    if(dx*dx+dy*dy<58*58){ignite(b,3,dps);hurt(b,e.d);}
+    if(dx*dx+dy*dy<58*58){ignite(b,3,5);hurt(b,e.d);}
   }
 }
 
@@ -329,8 +375,13 @@ function makeChoices(first){
   const pool=[];
   for(const id in AB){
     const l=lvl(id);
-    if(l>0&&l<3)pool.push({id,kind:'up',to:l+1});
-    else if(l===0&&G.slots.length<SLOTS)pool.push({id,kind:'new',to:1});
+    if(l>0&&l<3)pool.push({kind:'up',id,to:l+1});
+    else if(l===0&&G.slots.length<SLOTS)pool.push({kind:'new',id,to:1});
+  }
+  if(!first)for(const id in PA){
+    const l=plv(id);
+    if(l>0&&l<3)pool.push({kind:'pup',id,to:l+1});
+    else if(l===0&&G.pslots.length<PSLOTS)pool.push({kind:'pnew',id,to:1});
   }
   for(let i=pool.length-1;i>0;i--){const j=(rnd()*(i+1))|0;[pool[i],pool[j]]=[pool[j],pool[i]];}
   const out=[];
@@ -339,34 +390,38 @@ function makeChoices(first){
   if(out.length&&out.length<3&&!first)out.push({kind:'heal'});
   return out;
 }
-function chip2(a,b,label){return `<span class="chip" style="background:linear-gradient(135deg,${a} 50%,${b} 50%)">${label}</span>`;}
+function chip2(a,b,label){return `<span class="chip ball" style="background:linear-gradient(90deg,${a} 50%,${b} 50%)">${label}</span>`;}
 function cardHtml(c,i){
-  if(c.kind==='heal')return `<button class="card" data-i="${i}"><span class="chip" style="background:var(--danger)">+</span><span class="t">수리<em>HP +1</em></span><span class="d">무너진 방어선을 고쳐요 (최대 ${MAXHP})</span></button>`;
+  if(c.kind==='heal')return `<button class="card" data-i="${i}"><span class="chip pas" style="background:var(--danger)">+</span><span class="t">수리<em>HP +1</em></span><span class="d">무너진 방어선을 고쳐요</span></button>`;
   if(c.kind==='evo'){
     const E=EVO[c.id],A=AB[c.a],B=AB[c.b];
-    return `<button class="card combo" data-i="${i}">${chip2(A.c,B.c,'진')}<span class="t" style="color:${E.c}">${E.n}<em>진화 · ${A.n} + ${B.n}</em></span><span class="d">${E.d}. 두 능력의 효과도 그대로 남고, 슬롯이 1칸 비어요</span></button>`;
+    return `<button class="card combo" data-i="${i}">${chip2(A.c,B.c,'진')}<span class="t" style="color:${E.c}">${E.n}<em>진화 · ${A.n} + ${B.n}</em></span><span class="d">${E.d}. 두 공의 효과도 그대로 남고, 공 슬롯이 1칸 비어요</span></button>`;
   }
   if(c.kind==='fuse'){
     const A=AB[c.a],B=AB[c.b];
-    return `<button class="card combo" data-i="${i}">${chip2(A.c,B.c,'합')}<span class="t">합성<em>${A.n} + ${B.n}</em></span><span class="d">두 능력을 한 슬롯에 합쳐요. 효과는 그대로고 슬롯이 1칸 비어요</span></button>`;
+    return `<button class="card combo" data-i="${i}">${chip2(A.c,B.c,'합')}<span class="t">합성<em>${A.n} + ${B.n}</em></span><span class="d">두 공을 효과 그대로 한 공으로 합쳐요. 공 슬롯이 1칸 비어요</span></button>`;
+  }
+  if(c.kind==='pnew'||c.kind==='pup'){
+    const a=PA[c.id];
+    return `<button class="card" data-i="${i}"><span class="chip pas" style="background:${a.c}">${a.n[0]}</span><span class="t">${a.n}<em>${c.kind==='pnew'?'새 패시브':'Lv '+(c.to-1)+' → '+c.to}</em></span><span class="d">${a.d[c.to-1]}</span></button>`;
   }
   const a=AB[c.id];
-  return `<button class="card" data-i="${i}"><span class="chip" style="background:${a.c}">${a.n[0]}</span><span class="t">${a.n}<em>${c.kind==='new'?'새 능력':'Lv '+(c.to-1)+' → '+c.to}</em></span><span class="d">${a.d[c.to-1]}</span></button>`;
+  return `<button class="card" data-i="${i}"><span class="chip ball" style="background:${a.c}">${a.n[0]}</span><span class="t">${a.n}<em>${c.kind==='new'?'새 공':'Lv '+(c.to-1)+' → '+c.to}</em></span><span class="d">${a.d[c.to-1]}</span></button>`;
 }
 function recipesHtml(){
   const li=Object.values(EVO).map(E=>`<li><b style="color:${E.c}">${E.n}</b> = ${AB[E.from[0]].n} Lv3 + ${AB[E.from[1]].n} Lv3</li>`).join('');
-  return `<details class="recipes"${recipesOpen?' open':''}><summary>진화 조합 보기</summary><ul>${li}<li>그 밖의 Lv3 두 개는 합성할 수 있어요</li></ul></details>`;
+  return `<details class="recipes"${recipesOpen?' open':''}><summary>진화 조합 보기</summary><ul>${li}<li>그 밖의 Lv3 공 두 개는 합성할 수 있어요</li></ul></details>`;
 }
 function openChoices(first){
   const ch=makeChoices(first);
   if(!first&&!ch.length){
     /* nothing left to pick: a level-up just repairs one HP */
-    G.pending--;G.hp=Math.min(MAXHP,G.hp+1);hud();
+    G.pending--;G.hp=Math.min(G.maxHp,G.hp+1);hud();
     if(G.pending>0)openChoices(false);
     return;
   }
   G.state='choose';G.first=!!first;G.choices=ch;
-  show(`<h2>${first?'첫 능력을 고르세요':'레벨 업!'}</h2><div class="cards">${ch.map(cardHtml).join('')}</div><p class="hint">숫자키 1·2·3으로도 고를 수 있어요</p>${recipesHtml()}`);
+  show(`<h2>${first?'첫 공을 고르세요':'레벨 업!'}</h2><div class="cards">${ch.map(cardHtml).join('')}</div><p class="hint">숫자키 1·2·3으로도 고를 수 있어요</p>${recipesHtml()}`);
 }
 function combine(c){
   const ia=G.slots.findIndex(s=>s.kind==='single'&&s.id===c.a);
@@ -383,13 +438,17 @@ function combine(c){
   G.slots[Math.min(ia,ib)]=slot;
   G.slots.splice(Math.max(ia,ib),1);
 }
+function setWall(){G.maxHp=BASE_HP+pp('wall','add',0);G.hp=Math.min(G.maxHp,G.hp+1);}
 function pick(i){
   if(G.state!=='choose')return;
   const c=G.choices[i];if(!c)return;
-  if(c.kind==='heal')G.hp=Math.min(MAXHP,G.hp+1);
+  if(c.kind==='heal')G.hp=Math.min(G.maxHp,G.hp+1);
   else if(c.kind==='new'){G.ab[c.id]=1;G.slots.push({kind:'single',id:c.id});}
   else if(c.kind==='up')G.ab[c.id]++;
+  else if(c.kind==='pnew'){G.pa[c.id]=1;G.pslots.push(c.id);if(c.id==='wall')setWall();}
+  else if(c.kind==='pup'){G.pa[c.id]++;if(c.id==='wall')setWall();}
   else combine(c);
+  syncLoadout();
   if(!G.first)G.pending--;
   G.choices=null;hud();
   G.state='play';hide();
@@ -409,7 +468,7 @@ function over(){
   $('again').onclick=()=>{if(performance.now()-G.overAt>600)start();};
 }
 function showTitle(){
-  show(`<h1>회전포 벽돌깨기</h1><p class="sub">마우스나 손가락으로 방향을 잡으면<br>포가 돌아가며 공을 쏩니다.<br>(키보드는 ← →)<br><br>내려오는 벽돌을 부수고 레벨을 올려<br>능력 슬롯 4칸을 채우세요.<br>Lv3 능력 두 개는 합성하거나 진화해요.<br>벽돌이 아래 선에 닿으면 HP가 줄어요.</p><button class="btn" id="go">시작</button>`);
+  show(`<h1>회전포 벽돌깨기</h1><p class="sub">마우스나 손가락으로 방향을 잡으면<br>포가 돌아가며 공을 쏩니다. (키보드는 ← →)<br>바닥에 떨어진 공은 포로 돌아와 다시 나가요.<br><br>레벨업마다 색깔 공이나 패시브를 받고,<br>Lv3 공 두 개는 합성하거나 진화해요.<br>벽돌이 아래 선에 닿으면 HP가 줄어요.</p><button class="btn" id="go">시작</button>`);
   $('go').onclick=start;
 }
 function start(){reset();hud();openChoices(true);}
@@ -426,14 +485,12 @@ function update(dt){
   if(kd)aim=clamp(aim+kd*2.2*dt,-MAXA,MAXA);
   angle+=(aim-angle)*Math.min(1,dt*20);
 
-  G.fireT-=dt;
-  const iv=.42/(lvl('rapid')?pv('rapid','mul'):1);
-  while(G.fireT<=0){fire();G.fireT+=iv;}
-  if(evo('railgun')&&(G.railT-=dt)<=0){G.railT=2;railgun();}
+  G.launchT-=dt;
+  if(G.launchT<=0&&G.queue.length){launch(G.queue.shift());G.launchT=LAUNCH_IV/pp('rapid','mul',1);}
 
   if(G.freezeT>0)G.freezeT-=dt;
   else{
-    const dy=Math.min(60,12+G.t*.11)*dt;
+    const dy=Math.min(30,5+G.t*.04)*dt;
     for(const b of G.bricks)b.y+=dy;
     G.topY+=dy;
     while(G.topY>0){const ny=G.topY-ROW;spawnRow(ny);G.topY=ny;}
@@ -442,7 +499,7 @@ function update(dt){
   for(const b of G.bricks){
     if(b.dead)continue;
     b.flash=Math.max(0,b.flash-dt);
-    if(b.chill>0)b.chill-=dt;
+    if(b.chill>0&&(b.chill-=dt)<=0)b.chillBonus=0;
     if(b.burn>0){
       b.burn-=dt;b.burnAcc+=b.burnDps*dt;
       if(b.burnAcc>=1){const d=Math.floor(b.burnAcc);b.burnAcc-=d;hurt(b,d);}
@@ -472,6 +529,14 @@ function update(dt){
 function rr(x,y,w,h,r){
   ctx.beginPath();
   if(ctx.roundRect)ctx.roundRect(x,y,w,h,r);else ctx.rect(x,y,w,h);
+}
+function ballShape(x,y,r,c1,c2,ring){
+  if(c1===c2){ctx.fillStyle=c1;ctx.beginPath();ctx.arc(x,y,r,0,7);ctx.fill();}
+  else{
+    ctx.fillStyle=c1;ctx.beginPath();ctx.arc(x,y,r,Math.PI/2,Math.PI*1.5);ctx.fill();
+    ctx.fillStyle=c2;ctx.beginPath();ctx.arc(x,y,r,-Math.PI/2,Math.PI/2);ctx.fill();
+  }
+  if(ring){ctx.strokeStyle='rgba(255,255,255,.85)';ctx.lineWidth=1.5;ctx.beginPath();ctx.arc(x,y,r+1.5,0,7);ctx.stroke();}
 }
 function draw(){
   ctx.setTransform(DPR,0,0,DPR,0,0);
@@ -515,9 +580,10 @@ function draw(){
     ctx.lineTo(a.x2,a.y2);ctx.stroke();
   }
   for(const b of G.balls){
-    ctx.fillStyle=b.clone?'rgba(255,243,214,.7)':'#fff3d6';
-    ctx.beginPath();ctx.arc(b.x,b.y,b.clone?4:R,0,7);ctx.fill();
+    ctx.globalAlpha=b.clone?.7:1;
+    ballShape(b.x,b.y,b.clone?4:R,b.c1,b.c2,!!b.evo&&!b.clone);
   }
+  ctx.globalAlpha=1;
   for(const p of G.parts){
     ctx.globalAlpha=clamp(p.life/.45,0,1);ctx.fillStyle=p.c;ctx.fillRect(p.x-2,p.y-2,4,4);
   }
@@ -529,6 +595,13 @@ function draw(){
   ctx.moveTo(CX+Math.sin(angle)*34,CY-Math.cos(angle)*34);
   ctx.lineTo(CX+Math.sin(angle)*130,CY-Math.cos(angle)*130);
   ctx.stroke();ctx.restore();
+
+  /* magazine: balls waiting to be fired, next one closest to the turret */
+  G.queue.forEach((k,i)=>{
+    if(i>12)return;
+    const fx=fxOf(k);
+    ballShape(CX-30-i*12,CY+6,4,fx.c1,fx.c2,!!fx.evo);
+  });
 
   /* turret */
   ctx.save();ctx.translate(CX,CY);ctx.rotate(angle);
@@ -554,20 +627,28 @@ function draw(){
 
 /* ---------- hud ---------- */
 let lastXp=-1;
+const pipsHtml=l=>`<span class="pips">${[1,2,3].map(k=>'<i'+(k<=l?' class="on"':'')+'></i>').join('')}</span>`;
 function slotHtml(s){
-  if(!s)return '<div class="slot empty"><span class="n">빈 슬롯</span></div>';
-  if(s.kind==='evo'){const E=EVO[s.id];return `<div class="slot evo" style="--c:${E.c}"><span class="n">${E.n}</span><span class="tag">진화</span></div>`;}
+  if(!s)return '<div class="slot empty"><span class="n">빈 공 슬롯</span></div>';
+  if(s.kind==='evo'){const E=EVO[s.id];return `<div class="slot evo" style="--c:${E.c}"><span class="n"><i class="dot"></i>${E.n}</span><span class="tag">진화</span></div>`;}
   if(s.kind==='fused'){const A=AB[s.ids[0]],B=AB[s.ids[1]];return `<div class="slot"><span class="n sm"><span style="color:${A.c}">${A.n}</span>+<span style="color:${B.c}">${B.n}</span></span><span class="tag">합성</span></div>`;}
-  const a=AB[s.id],l=G.ab[s.id];
-  return `<div class="slot" style="--c:${a.c}"><span class="n">${a.n}</span><span class="pips">${[1,2,3].map(k=>'<i'+(k<=l?' class="on"':'')+'></i>').join('')}</span></div>`;
+  const a=AB[s.id];
+  return `<div class="slot" style="--c:${a.c}"><span class="n"><i class="dot"></i>${a.n}</span>${pipsHtml(G.ab[s.id])}</div>`;
+}
+function pslotHtml(id){
+  if(!id)return '<div class="slot empty"><span class="n">빈 패시브</span></div>';
+  const a=PA[id];
+  return `<div class="slot" style="--c:${a.c}"><span class="n">${a.n}</span>${pipsHtml(G.pa[id])}</div>`;
 }
 function hud(){
   lastXp=-1;
   $('lv').textContent=G.lv;
-  let h='';for(let i=0;i<MAXHP;i++)h+='<b'+(i<G.hp?'':' class="off"')+'></b>';
+  let h='';for(let i=0;i<G.maxHp;i++)h+='<b'+(i<G.hp?'':' class="off"')+'></b>';
   $('hp').innerHTML=h;
   let s='';for(let i=0;i<SLOTS;i++)s+=slotHtml(G.slots[i]);
   $('slots').innerHTML=s;
+  let p='';for(let i=0;i<PSLOTS;i++)p+=pslotHtml(G.pslots[i]);
+  $('pslots').innerHTML=p;
 }
 function hudFrame(){
   const w=(G.xp/G.need*100).toFixed(1);
