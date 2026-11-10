@@ -28,7 +28,10 @@ body{
   padding-right:max(16px,env(safe-area-inset-right,0px));
 }
 #app{height:100%;min-height:0;display:flex;flex-direction:column;align-items:center;gap:8px}
-#hud,#slots,#pslots{width:var(--bw,360px);flex:none}
+#hud,#slots,#pslots,#augs{width:var(--bw,360px);flex:none}
+#augs{display:flex;flex-wrap:wrap;gap:4px}
+#augs[hidden]{display:none}
+.augc{font-size:11px;line-height:1;padding:4px 7px;border-radius:999px;border:1px solid var(--c);color:var(--c);white-space:nowrap}
 #hud{display:flex;align-items:center;gap:10px}
 .lv{font-family:var(--font-display);font-size:20px;white-space:nowrap;font-variant-numeric:tabular-nums}
 .lv small{color:var(--muted);font-size:12px;margin-right:4px;letter-spacing:.08em}
@@ -56,6 +59,10 @@ h2{font-family:var(--font-display);font-weight:400;font-size:24px;margin:0}
 .chip{grid-row:span 2;width:44px;height:44px;display:grid;place-items:center;font-family:var(--font-display);font-size:22px;color:var(--ink)}
 .chip.ball{border-radius:50%}
 .chip.pas{border-radius:8px}
+.chip.aug{clip-path:polygon(50% 0,100% 50%,50% 100%,0 50%)}
+.card.aug{background:var(--panel2);border-color:var(--accent)}
+.reroll{font-family:var(--font-body);font-size:13px;padding:6px 14px;border-radius:999px;border:1px solid var(--accent);background:transparent;color:var(--accent);cursor:pointer}
+.reroll:focus-visible{outline:2px solid var(--fg);outline-offset:2px}
 .card .t{font-family:var(--font-display);font-size:18px}
 .card .t em{font-style:normal;color:var(--accent);font-size:12.5px;margin-left:8px;font-family:var(--font-body)}
 .card .d{font-size:12.5px;color:var(--muted);line-height:1.45}
@@ -99,6 +106,7 @@ h2{font-family:var(--font-display);font-weight:400;font-size:24px;margin:0}
   </div>
   <footer id="slots" aria-label="공 슬롯"></footer>
   <footer id="pslots" aria-label="패시브 슬롯"></footer>
+  <div id="augs" hidden aria-label="증강"></div>
 </div>
 
 <script>
@@ -152,9 +160,44 @@ const EVO={
   frostfire:{n:'서리불꽃',c:'#ff8fd0',from:['burn','chill'],d:'맞힌 벽돌이 5초 동안 초당 8 피해를 입어요'},
   railgun:{n:'레일건',c:'#d7b8ff',from:['bolt','pierce'],d:'이 공을 쏠 때마다 조준 방향의 벽돌을 모두 꿰뚫는 광선이 함께 나가요'},
   thunder:{n:'천둥',c:'#fff07a',from:['bolt','split'],d:'맞힐 때마다 근처 벽돌 4개에 번개가 떨어져요'},
-  glacier:{n:'빙결',c:'#a8e6ff',from:['chill','pierce'],d:'이 공이 벽돌을 12번 맞힐 때마다 모든 벽돌이 2초 동안 얼어서 멈춰요'},
+  glacier:{n:'빙결',c:'#a8e6ff',from:['chill','pierce'],d:'이 공이 벽돌을 12번 맞힐 때마다 모든 벽돌이 2초 동안 얼어서 멈춰요 (풀린 뒤 5초는 다시 못 얼려요)'},
   barrage:{n:'탄막',c:'#7ef0c9',from:['split','pierce'],d:'이 공을 쏠 때마다 복제 공 2개가 부채꼴로 함께 나가요'}
 };
+/* evolved and fused balls keep growing from ★1 to ★5 */
+const MAXSTAR=5;
+const mlvOf=key=>G.mlv[key]||1;
+const railBounces=lv=>lv>=5?3:lv>=3?2:1;
+const fanOffsets=lv=>lv>=5?[-.5,-.3,-.15,.15,.3,.5]:lv>=3?[-.4,-.2,.2,.4]:[-.22,.22];
+const glacierEvery=lv=>Math.round(12-1.5*(lv-1));
+const GLACIER_CD=5;
+const glacierSecs=lv=>2+.25*(lv-1);
+function starDesc(key,to){
+  const dmg=`이 공 피해 +${30*(to-1)}%`;
+  if(!key.startsWith('e:'))return dmg;
+  const extra={
+    fireworks:`폭발 범위 ${58+8*(to-1)}, 폭발 피해 ${50+10*(to-1)}%`,
+    frostfire:`초당 ${8+4*(to-1)} 피해`,
+    railgun:`광선 피해 +${25*(to-1)}%, ${railBounces(to)}번 튕김`,
+    thunder:`번개 ${3+to}갈래`,
+    glacier:`${glacierEvery(to)}번 맞힐 때마다 ${glacierSecs(to)}초 빙결`,
+    barrage:`복제 공 ${fanOffsets(to).length}개`
+  }[key.slice(2)];
+  return extra+' · '+dmg;
+}
+/* augments: run-wide bonuses from chests and bosses, no slot needed */
+const AUG={
+  twin:{n:'쌍둥이 탄',c:'#fff3d6',max:3,d:()=>'기본 공 +2개'},
+  giant:{n:'거대 공',c:'#ffb3c7',max:1,d:()=>'모든 공 크기 +40%, 피해 +20%'},
+  crit:{n:'치명타',c:'#ff6b6b',max:3,d:n=>`공이 ${15*(n+1)}% 확률로 3배 피해를 줘요`},
+  slow:{n:'시간 왜곡',c:'#a5b4ff',max:2,d:()=>'벽돌이 15% 느리게 내려와요'},
+  luck:{n:'행운',c:'#9fe870',max:1,d:()=>'레벨업 선택지가 4장이 돼요'},
+  reroll:{n:'다시 뽑기',c:'#ffd166',max:9,d:()=>'레벨업 카드를 다시 뽑을 기회 +3번'},
+  chain:{n:'연쇄 폭발',c:'#ff9a5c',max:1,d:()=>'벽돌이 부서질 때 20% 확률로 주변이 폭발해요'},
+  vamp:{n:'흡혈',c:'#ff6b81',max:1,d:()=>'벽돌 120개를 부술 때마다 HP 1 회복'},
+  awaken:{n:'각성',c:'#ffe27a',max:9,d:()=>'모든 진화·합성 공 ★+1',ok:()=>G.slots.some(s=>s.kind!=='single'&&mlvOf(slotKey(s))<MAXSTAR)},
+  repair:{n:'대수리',c:'#ff9fb0',max:2,d:()=>'최대 HP +2, HP 모두 회복'}
+};
+const aug=id=>G.aug[id]||0;
 const lvl=id=>G.ab[id]||0;
 const pv=(id,k)=>P[id][k][lvl(id)-1];
 const plv=id=>G.pa[id]||0;
@@ -172,6 +215,7 @@ const xpNeed=l=>Math.round(6*Math.pow(1.3,l-1));
 const fmt=t=>Math.floor(t/60)+':'+String(Math.floor(t%60)).padStart(2,'0');
 const tier=hp=>hp<4?0:hp<8?1:hp<13?2:hp<20?3:hp<30?4:5;
 const eun=w=>(w.charCodeAt(w.length-1)-0xAC00)%28?'은':'는';
+function shuffle(a){for(let i=a.length-1;i>0;i--){const j=(rnd()*(i+1))|0;[a[i],a[j]]=[a[j],a[i]];}return a;}
 
 /* ---------- state ---------- */
 let G,aim=0,angle=0,recipesOpen=false;
@@ -181,8 +225,9 @@ function reset(){
   G={state:'title',t:0,lv:1,xp:0,need:xpNeed(1),hp:BASE_HP,maxHp:BASE_HP,kills:0,
      balls:[],bricks:[],parts:[],arcs:[],rings:[],beams:[],boom:[],
      ab:{},pa:{},evo:{},slots:[],pslots:[],queue:[],launchT:0,rowN:0,topY:8,
-     freezeT:0,banner:null,pending:0,choices:null,first:false,flash:0,overAt:0,
-     nextBoss:100,bosses:0,seen:{}};
+     freezeT:0,freezeCd:0,banner:null,pending:0,choices:null,first:false,flash:0,overAt:0,
+     nextBoss:100,bosses:0,seen:{},
+     mlv:{},aug:{},augQ:0,rerolls:0,nextChest:45,chestDue:false};
   for(let i=4;i>=0;i--)spawnRow(8+i*ROW);
   syncLoadout();
 }
@@ -194,15 +239,17 @@ const SPECIAL={
   shield:{n:'보호막 벽돌',c:'#7df9ff',at:80,d:'처음 몇 번 맞는 건 막아내요'},
   regen:{n:'재생 벽돌',c:'#63d297',at:130,d:'체력이 차올라요. 불을 붙이면 멈춰요'},
   breeder:{n:'증식 벽돌',c:'#e05bd6',at:190,d:'옆 칸에 벽돌을 계속 만들어요'},
-  boss:{n:'보스 벽돌',c:'#ff5470',d:'선에 닿으면 HP -3 · 부수면 경험치 폭탄'}
+  boss:{n:'보스 벽돌',c:'#ff5470',d:'선에 닿으면 HP -3 · 부수면 증강'},
+  chest:{n:'보물상자',c:'#d9a25b',d:'부수면 증강을 골라요 · 놓쳐도 HP는 그대로'}
 };
-/* gentle early, steeper late; after 4 minutes a time multiplier keeps strong builds honest */
-const rowBase=n=>(2+n*.22+n*n*.001)*(1+Math.max(0,G.t-240)/240);
+/* gentle early, steeper late; after 4 minutes brick HP compounds 22% a minute so even maxed builds end */
+const rowBase=n=>(2+n*.22+n*n*.001)*Math.pow(1.22,Math.max(0,G.t-240)/60);
 function addBrick(c,y,hp,type,row,w=1,h=1){
   const b={x:c*CW+2,y,w:CW*w-4,h:ROW*h-4,col:c,hp,max:hp,row,type,flash:0,burn:0,burnDps:0,burnAcc:0,ff:false,chill:0,chillBonus:0,
     shield:type==='shield'?Math.min(6,2+Math.floor(G.t/90)):0,breedT:5,dead:false};
   G.bricks.push(b);
-  if(type!=='normal'&&!G.seen[type]){G.seen[type]=true;const S=SPECIAL[type];G.banner={text:'새 적: '+S.n,sub:S.d,c:S.c,t:2.6};}
+  if(type==='chest')G.banner={text:'보물상자!',sub:SPECIAL.chest.d,c:SPECIAL.chest.c,t:2.2};
+  else if(type!=='normal'&&!G.seen[type]){G.seen[type]=true;const S=SPECIAL[type];G.banner={text:'새 적: '+S.n,sub:S.d,c:S.c,t:2.6};}
   return b;
 }
 function spawnRow(y){
@@ -210,7 +257,10 @@ function spawnRow(y){
   const cols=[];
   for(let c=0;c<COLS;c++)if(rnd()<.6)cols.push(c);
   while(cols.length<3){const c=(rnd()*COLS)|0;if(!cols.includes(c))cols.push(c);}
+  const chestCol=G.chestDue?cols[(rnd()*cols.length)|0]:-1;
+  G.chestDue=false;
   for(const c of cols){
+    if(c===chestCol){addBrick(c,y,Math.max(3,Math.round(base*3)),'chest',n);continue;}
     let type='normal',hp=Math.max(1,Math.round(base*(.7+rnd()*.7)));
     if(G.t>SPECIAL.gold.at&&rnd()<.03)type='gold';
     else if(G.t>SPECIAL.armor.at&&rnd()<Math.min(.3,(G.t-SPECIAL.armor.at)/600)){
@@ -242,7 +292,7 @@ function breed(b){
 const slotKey=s=>s.kind==='single'?s.id:s.kind==='evo'?'e:'+s.id:'f:'+s.ids.join('+');
 function loadoutKeys(){
   const k=[];
-  for(let i=0;i<BASE_BALLS+pp('mag','add',0);i++)k.push('b'+i);
+  for(let i=0;i<BASE_BALLS+pp('mag','add',0)+2*aug('twin');i++)k.push('b'+i);
   for(const s of G.slots)k.push(slotKey(s));
   return k;
 }
@@ -253,16 +303,21 @@ function syncLoadout(){
   for(const k of keys)if(!live.has(k))G.queue.push(k);
 }
 function fxOf(key){
-  if(key[0]==='b'&&key.length<4&&/^b\d+$/.test(key))return{ids:[],evo:null,c1:BASIC_C,c2:BASIC_C};
-  if(key.startsWith('e:')){const id=key.slice(2),E=EVO[id];return{ids:E.from.slice(),evo:id,c1:E.c,c2:E.c};}
-  if(key.startsWith('f:')){const ids=key.slice(2).split('+');return{ids,evo:null,c1:AB[ids[0]].c,c2:AB[ids[1]].c};}
-  return{ids:[key],evo:null,c1:AB[key].c,c2:AB[key].c};
+  if(/^b\d+$/.test(key))return{ids:[],evo:null,c1:BASIC_C,c2:BASIC_C,elv:1};
+  if(key.startsWith('e:')){const id=key.slice(2),E=EVO[id];return{ids:E.from.slice(),evo:id,c1:E.c,c2:E.c,elv:mlvOf(key)};}
+  if(key.startsWith('f:')){const ids=key.slice(2).split('+');return{ids,evo:null,c1:AB[ids[0]].c,c2:AB[ids[1]].c,elv:mlvOf(key)};}
+  return{ids:[key],evo:null,c1:AB[key].c,c2:AB[key].c,elv:1};
+}
+function slotName(key){
+  if(key.startsWith('e:'))return EVO[key.slice(2)].n;
+  const ids=key.slice(2).split('+');return AB[ids[0]].n+'+'+AB[ids[1]].n;
 }
 
 /* ---------- combat ---------- */
+const ballR=b=>(b.clone?4:R)*(aug('giant')?1.4:1);
 function spawnBall(x,y,a,key,fx,clone){
   const sp=BALL_SP*pp('rapid','mul',1);
-  G.balls.push({x,y,vx:Math.sin(a)*sp,vy:-Math.cos(a)*sp,sp,key,ids:fx.ids,evo:fx.evo,c1:fx.c1,c2:fx.c2,
+  G.balls.push({x,y,vx:Math.sin(a)*sp,vy:-Math.cos(a)*sp,sp,key,ids:fx.ids,evo:fx.evo,c1:fx.c1,c2:fx.c2,elv:fx.elv||1,
     clone,hits:0,glHits:0,inside:new Set(),dead:false});
 }
 const cloneCount=()=>{let n=0;for(const b of G.balls)if(b.clone)n++;return n;};
@@ -270,8 +325,8 @@ function launch(key){
   const fx=fxOf(key),a=angle+(rnd()-.5)*.03;
   const x=CX+Math.sin(a)*26,y=CY-Math.cos(a)*26;
   spawnBall(x,y,a,key,fx,false);
-  if(fx.evo==='railgun')railgun();
-  if(fx.evo==='barrage')for(const o of [-.22,.22])if(cloneCount()<MAXCLONES)spawnBall(x,y,a+o,key,fx,true);
+  if(fx.evo==='railgun')railgun(fx.elv);
+  if(fx.evo==='barrage')for(const o of fanOffsets(fx.elv))if(cloneCount()<MAXCLONES)spawnBall(x,y,a+o,key,fx,true);
 }
 function fix(b){
   const m=b.sp*.24;
@@ -281,7 +336,7 @@ function fix(b){
   }
 }
 function split(b,n){
-  const fx={ids:b.ids,evo:b.evo,c1:b.c1,c2:b.c2};
+  const fx={ids:b.ids,evo:b.evo,c1:b.c1,c2:b.c2,elv:b.elv};
   for(let i=0;i<n&&cloneCount()<MAXCLONES;i++){
     const a=Math.atan2(b.vx,-b.vy)+(n===1?(rnd()<.5?-1:1):(i===0?-1:1))*(.35+rnd()*.4);
     spawnBall(b.x,b.y,a,b.key,fx,true);
@@ -300,12 +355,17 @@ function kill(br){
   br.dead=true;G.kills++;
   let xp=Math.max(1,Math.round(br.max*.5*pp('study','mul',1)*(br.type==='gold'?5:1)));
   if(br.type==='boss'){
-    xp=Math.min(xp,Math.round(G.need*2.5));G.bosses++;
-    G.banner={text:'보스 격파!',c:SPECIAL.boss.c,t:1.8};
+    xp=Math.min(xp,Math.round(G.need*2.5));G.bosses++;G.augQ++;
+    G.banner={text:'보스 격파!',sub:'증강을 골라요',c:SPECIAL.boss.c,t:1.8};
   }
+  if(br.type==='chest'){G.augQ++;G.banner={text:'보물상자 열림!',sub:'증강을 골라요',c:SPECIAL.chest.c,t:1.6};}
   gainXp(xp);
   const cx=br.x+br.w/2,cy=br.y+br.h/2;
-  if(evo('fireworks')&&br.burn>0)G.boom.push({x:cx,y:cy,d:Math.max(3,br.max*.5)});
+  if(evo('fireworks')&&br.burn>0){
+    const l=mlvOf('e:fireworks');
+    G.boom.push({x:cx,y:cy,d:Math.max(3,br.max*(.5+.1*(l-1))),r:58+8*(l-1),fire:true});
+  }else if(aug('chain')&&rnd()<.2)G.boom.push({x:cx,y:cy,d:Math.max(2,br.max*.3),r:45});
+  if(aug('vamp')&&G.kills%120===0&&G.hp<G.maxHp){G.hp++;hud();}
   if(G.parts.length<240){
     const c=SPECIAL[br.type]&&br.type!=='shield'?SPECIAL[br.type].c:TIER[tier(br.max)];
     for(let i=0,n=br.type==='boss'?28:6;i<n;i++)G.parts.push({x:cx,y:cy,vx:rnd()*160-80,vy:rnd()*160-100,life:.45,c});
@@ -323,23 +383,25 @@ function bolt(from,k,d,range){
 }
 function onHit(b,br){
   const has=id=>b.ids.includes(id);
-  let dmg=(1+pp('power','add',0))*(b.clone?.6:1);
+  let dmg=(1+pp('power','add',0))*(b.clone?.6:1)*(1+.3*(b.elv-1))*(aug('giant')?1.2:1);
   if(br.chill>0)dmg*=1+br.chillBonus;
+  if(aug('crit')&&rnd()<.15*aug('crit'))dmg*=3;
   /* statuses land before the damage so a killing blow can already set off fireworks */
-  if(b.evo==='frostfire'){ignite(br,5,8);br.ff=true;}
+  if(b.evo==='frostfire'){ignite(br,5,8+4*(b.elv-1));br.ff=true;}
   else if(has('burn'))ignite(br,pv('burn','dur'),pv('burn','dps'));
   if(has('chill')){br.chill=Math.max(br.chill,pv('chill','dur'));br.chillBonus=Math.max(br.chillBonus,pv('chill','bonus'));}
   hurt(br,dmg);
-  if(b.evo==='thunder')bolt(br,4,dmg,130);
+  if(b.evo==='thunder')bolt(br,3+b.elv,dmg,120+10*b.elv);
   else if(has('bolt')&&rnd()<pv('bolt','p'))bolt(br,pv('bolt','k'),dmg,110);
   if(has('split')&&!b.clone&&++b.hits>=pv('split','every')){b.hits=0;split(b,pv('split','n'));}
-  if(b.evo==='glacier'&&!b.clone&&++b.glHits>=12){
-    b.glHits=0;G.freezeT=2;
+  /* after a freeze ends the field must move for a few seconds before the next one can land */
+  if(b.evo==='glacier'&&!b.clone&&G.freezeT<=0&&G.freezeCd<=0&&++b.glHits>=glacierEvery(b.elv)){
+    b.glHits=0;G.freezeT=glacierSecs(b.elv);G.freezeCd=glacierSecs(b.elv)+GLACIER_CD;
     for(const o of G.bricks)if(!o.dead){o.chill=Math.max(o.chill,2);o.chillBonus=Math.max(o.chillBonus,pv('chill','bonus'));}
   }
 }
 function stepBall(b,dt){
-  const n=Math.max(1,Math.ceil(b.sp*dt/3)),h=dt/n,r=b.clone?4:R;
+  const n=Math.max(1,Math.ceil(b.sp*dt/3)),h=dt/n,r=ballR(b);
   const pierce=b.ids.includes('pierce')?pv('pierce','p'):0;
   for(let s=0;s<n&&!b.dead;s++){
     b.x+=b.vx*h;b.y+=b.vy*h;
@@ -388,11 +450,11 @@ function rayHits(x0,y0,dx,dy,tMax,b,pad){
   }
   return true;
 }
-/* the beam leaves the barrel, bounces off the first wall (side or ceiling) once, then runs to the next wall */
-function railPath(){
+/* the beam leaves the barrel and bounces off walls (side or ceiling) `bounces` times */
+function railPath(bounces){
   let x=CX+Math.sin(angle)*26,y=CY-Math.cos(angle)*26,dx=Math.sin(angle),dy=-Math.cos(angle);
   const segs=[];
-  for(let k=0;k<2;k++){
+  for(let k=0;k<=bounces;k++){
     let t=1e9,wall=null;
     if(dx>1e-6){t=(W-x)/dx;wall='side';}else if(dx<-1e-6){t=-x/dx;wall='side';}
     if(dy<-1e-6){const ty=-y/dy;if(ty<t){t=ty;wall='top';}}
@@ -404,9 +466,9 @@ function railPath(){
   }
   return segs;
 }
-function railgun(){
-  const segs=railPath(),hit=new Set();
-  const dmg=rowBase(G.rowN)*.8+pp('power','add',0)*2;
+function railgun(lv){
+  const segs=railPath(railBounces(lv)),hit=new Set();
+  const dmg=(rowBase(G.rowN)*.8+pp('power','add',0)*2)*(1+.25*(lv-1));
   for(const s of segs)for(const b of G.bricks){
     if(b.dead||hit.has(b)||!rayHits(s.x,s.y,s.dx,s.dy,s.t,b,4))continue;
     hit.add(b);hurt(b,dmg);
@@ -415,11 +477,11 @@ function railgun(){
   G.beams.push({pts:segs.map(s=>[s.x,s.y]).concat([[last.x+last.dx*last.t,last.y+last.dy*last.t]]),life:.25});
 }
 function explode(e){
-  G.rings.push({x:e.x,y:e.y,life:.3});
+  G.rings.push({x:e.x,y:e.y,r:e.r,c:e.fire?'255,179,71':'255,120,90',life:.3});
   for(const b of G.bricks){
     if(b.dead)continue;
     const dx=b.x+b.w/2-e.x,dy=b.y+b.h/2-e.y;
-    if(dx*dx+dy*dy<58*58){ignite(b,3,5);hurt(b,e.d);}
+    if(dx*dx+dy*dy<e.r*e.r){if(e.fire)ignite(b,3,5);hurt(b,e.d);}
   }
 }
 
@@ -460,15 +522,32 @@ function makeChoices(first){
     if(l>0&&l<3)pool.push({kind:'pup',id,to:l+1});
     else if(l===0&&G.pslots.length<PSLOTS)pool.push({kind:'pnew',id,to:1});
   }
-  for(let i=pool.length-1;i>0;i--){const j=(rnd()*(i+1))|0;[pool[i],pool[j]]=[pool[j],pool[i]];}
-  const out=[];
+  if(!first)for(const s of G.slots){
+    if(s.kind==='single')continue;
+    const key=slotKey(s),l=mlvOf(key);
+    if(l<MAXSTAR)pool.push({kind:'mup',key,to:l+1});
+  }
+  shuffle(pool);
+  const out=[],n=cardN();
   if(!first){const combos=comboOptions();if(combos.length)out.push(combos[(rnd()*combos.length)|0]);}
-  for(const c of pool){if(out.length>=3)break;out.push(c);}
-  if(out.length&&out.length<3&&!first)out.push({kind:'heal'});
+  /* merged balls are where late growth lives, so a ★ card usually makes the hand */
+  const star=pool.find(c=>c.kind==='mup');
+  if(star&&rnd()<.6)out.push(star);
+  for(const c of pool){if(out.length>=n)break;if(!out.includes(c))out.push(c);}
+  if(out.length&&out.length<n&&!first)out.push({kind:'heal'});
   return out;
 }
+const cardN=()=>aug('luck')?4:3;
 function chip2(a,b,label){return `<span class="chip ball" style="background:linear-gradient(90deg,${a} 50%,${b} 50%)">${label}</span>`;}
 function cardHtml(c,i){
+  if(c.kind==='aug'){
+    const A=AUG[c.id],n=aug(c.id);
+    return `<button class="card aug" data-i="${i}"><span class="chip aug" style="background:${A.c}">${A.n[0]}</span><span class="t">${A.n}<em>증강${n?' · '+(n+1)+'번째':''}</em></span><span class="d">${A.d(n)}</span></button>`;
+  }
+  if(c.kind==='mup'){
+    const fx=fxOf(c.key);
+    return `<button class="card" data-i="${i}">${chip2(fx.c1,fx.c2,'★')}<span class="t"${fx.c1===fx.c2?` style="color:${fx.c1}"`:''}>${slotName(c.key)}<em>★${c.to-1} → ★${c.to}</em></span><span class="d">${starDesc(c.key,c.to)}</span></button>`;
+  }
   if(c.kind==='heal')return `<button class="card" data-i="${i}"><span class="chip pas" style="background:var(--danger)">+</span><span class="t">수리<em>HP +1</em></span><span class="d">무너진 방어선을 고쳐요</span></button>`;
   if(c.kind==='evo'){
     const E=EVO[c.id],A=AB[c.a],B=AB[c.b];
@@ -497,18 +576,38 @@ function openChoices(first){
   if(!first&&!ch.length){
     /* nothing left to pick: a level-up just repairs one HP */
     G.pending--;G.hp=Math.min(G.maxHp,G.hp+1);hud();
-    if(G.pending>0)openChoices(false);
+    nextChoice();
     return;
   }
   G.state='choose';G.first=!!first;G.choices=ch;
-  show(`<h2>${first?'첫 공을 고르세요':'레벨 업!'}</h2><div class="cards">${ch.map(cardHtml).join('')}</div><p class="hint">숫자키 1·2·3으로도 고를 수 있어요</p>${recipesHtml()}`);
+  const rb=G.rerolls>0?`<button class="reroll" id="reroll">다시 뽑기 (${G.rerolls})</button>`:'';
+  show(`<h2>${first?'첫 공을 고르세요':'레벨 업!'}</h2><div class="cards">${ch.map(cardHtml).join('')}</div>${rb}<p class="hint">숫자키 1~${ch.length}로도 고를 수 있어요</p>${recipesHtml()}`);
+  if(rb)$('reroll').onclick=()=>{G.rerolls--;openChoices(first);};
+}
+function openAug(){
+  const ch=shuffle(Object.keys(AUG).filter(k=>aug(k)<AUG[k].max&&(!AUG[k].ok||AUG[k].ok()))).slice(0,3).map(id=>({kind:'aug',id}));
+  if(!ch.length){G.augQ--;nextChoice();return;}
+  G.state='choose';G.first=false;G.choices=ch;
+  show(`<h2 style="color:var(--accent)">증강 선택</h2><p class="hint">슬롯을 차지하지 않는, 이번 판 내내 가는 보너스예요</p><div class="cards">${ch.map(cardHtml).join('')}</div>`);
+}
+/* level-ups first, then augments from chests and bosses */
+function nextChoice(){
+  if(G.pending>0)openChoices(false);
+  else if(G.augQ>0)openAug();
+}
+function applyAug(id){
+  G.aug[id]=aug(id)+1;
+  if(id==='reroll')G.rerolls+=3;
+  if(id==='awaken')for(const s of G.slots)if(s.kind!=='single'){const k=slotKey(s);G.mlv[k]=Math.min(MAXSTAR,mlvOf(k)+1);}
+  if(id==='repair'){recalcHp();G.hp=G.maxHp;}
+  G.banner={text:AUG[id].n+'!',c:AUG[id].c,t:1.4};
 }
 function combine(c){
   const ia=G.slots.findIndex(s=>s.kind==='single'&&s.id===c.a);
   if(ia<0)return;
   if(c.via){
     /* partner ability is borrowed from a merged ball, which keeps its slot */
-    G.evo[c.id]=true;G.slots[ia]={kind:'evo',id:c.id,ids:[c.a,c.b]};
+    G.evo[c.id]=true;G.slots[ia]={kind:'evo',id:c.id,ids:[c.a,c.b]};G.mlv['e:'+c.id]=1;
     G.banner={text:'진화! '+EVO[c.id].n,c:EVO[c.id].c,t:1.8};
     return;
   }
@@ -524,26 +623,37 @@ function combine(c){
   }
   G.slots[Math.min(ia,ib)]=slot;
   G.slots.splice(Math.max(ia,ib),1);
+  G.mlv[slotKey(slot)]=1;
 }
-function setWall(){G.maxHp=BASE_HP+pp('wall','add',0);G.hp=Math.min(G.maxHp,G.hp+1);}
+function recalcHp(){G.maxHp=BASE_HP+pp('wall','add',0)+2*aug('repair');}
+function setWall(){recalcHp();G.hp=Math.min(G.maxHp,G.hp+1);}
 function pick(i){
   if(G.state!=='choose')return;
   const c=G.choices[i];if(!c)return;
-  if(c.kind==='heal')G.hp=Math.min(G.maxHp,G.hp+1);
-  else if(c.kind==='new'){G.ab[c.id]=1;G.slots.push({kind:'single',id:c.id});}
-  else if(c.kind==='up')G.ab[c.id]++;
-  else if(c.kind==='pnew'){G.pa[c.id]=1;G.pslots.push(c.id);if(c.id==='wall')setWall();}
-  else if(c.kind==='pup'){G.pa[c.id]++;if(c.id==='wall')setWall();}
-  else combine(c);
+  if(c.kind==='aug'){applyAug(c.id);G.augQ--;}
+  else{
+    if(c.kind==='heal')G.hp=Math.min(G.maxHp,G.hp+1);
+    else if(c.kind==='new'){G.ab[c.id]=1;G.slots.push({kind:'single',id:c.id});}
+    else if(c.kind==='up')G.ab[c.id]++;
+    else if(c.kind==='pnew'){G.pa[c.id]=1;G.pslots.push(c.id);if(c.id==='wall')setWall();}
+    else if(c.kind==='pup'){G.pa[c.id]++;if(c.id==='wall')setWall();}
+    else if(c.kind==='mup')G.mlv[c.key]=c.to;
+    else combine(c);
+    if(!G.first)G.pending--;
+  }
   syncLoadout();
-  if(!G.first)G.pending--;
   G.choices=null;hud();
   G.state='play';hide();
-  if(G.pending>0)openChoices(false);
+  nextChoice();
 }
 
 /* ---------- flow ---------- */
 function breach(b){
+  if(b.type==='chest'){
+    G.bricks=G.bricks.filter(o=>o!==b);
+    G.banner={text:'보물상자를 놓쳤어요',c:col.muted,t:1.4};
+    return;
+  }
   G.bricks=G.bricks.filter(o=>o.row!==b.row);
   G.hp=Math.max(0,G.hp-(b.type==='boss'?3:1));G.flash=.35;hud();
   if(G.hp<=0)over();
@@ -555,7 +665,7 @@ function over(){
   $('again').onclick=()=>{if(performance.now()-G.overAt>600)start();};
 }
 function showTitle(){
-  show(`<h1>회전포 벽돌깨기</h1><p class="sub">마우스나 손가락으로 방향을 잡으면<br>포가 돌아가며 공을 쏩니다. (키보드는 ← →)<br>바닥에 떨어진 공은 포로 돌아와 다시 나가요.<br><br>레벨업마다 색깔 공이나 패시브를 받고,<br>Lv3 공 두 개는 합성하거나 진화해요.<br>벽돌이 아래 선에 닿으면 HP가 줄어요.</p><button class="btn" id="go">시작</button>`);
+  show(`<h1>회전포 벽돌깨기</h1><p class="sub">마우스나 손가락으로 방향을 잡으면<br>포가 돌아가며 공을 쏩니다. (키보드는 ← →)<br>바닥에 떨어진 공은 포로 돌아와 다시 나가요.<br><br>레벨업마다 색깔 공이나 패시브를 받고,<br>Lv3 공 두 개는 합성하거나 진화해요.<br>보물상자와 보스를 부수면 증강을 골라요.<br>벽돌이 아래 선에 닿으면 HP가 줄어요.</p><button class="btn" id="go">시작</button>`);
   $('go').onclick=start;
 }
 function start(){reset();hud();openChoices(true);}
@@ -575,9 +685,11 @@ function update(dt){
   G.launchT-=dt;
   if(G.launchT<=0&&G.queue.length){launch(G.queue.shift());G.launchT=LAUNCH_IV/pp('rapid','mul',1);}
 
+  if(G.t>=G.nextChest){G.nextChest+=70;G.chestDue=true;}
+  if(G.freezeCd>0)G.freezeCd-=dt;
   if(G.freezeT>0)G.freezeT-=dt;
   else{
-    const dy=Math.min(30,5+G.t*.04)*dt;
+    const dy=Math.min(30,5+G.t*.04)*(1-.15*aug('slow'))*dt;
     for(const b of G.bricks)b.y+=dy;
     G.topY+=dy;
     while(G.topY>0){
@@ -614,7 +726,7 @@ function update(dt){
   for(const b of G.beams)b.life-=dt;
   G.beams=G.beams.filter(b=>b.life>0);
 
-  if(G.state==='play'&&G.pending>0)openChoices(false);
+  if(G.state==='play')nextChoice();
 }
 
 /* ---------- draw ---------- */
@@ -652,6 +764,11 @@ function draw(){
     if(b.flash>0){ctx.fillStyle='rgba(255,255,255,'+(b.flash*6).toFixed(2)+')';ctx.fill();}
     if(b.burn>0){ctx.strokeStyle=b.ff?'#ff8fd0':'#ff9a5c';ctx.lineWidth=2;ctx.stroke();}
     if(b.shield>0){ctx.strokeStyle='#7df9ff';ctx.lineWidth=2.5;ctx.stroke();}
+    if(b.type==='chest'){
+      ctx.strokeStyle='#6b4a1f';ctx.lineWidth=2;ctx.beginPath();
+      ctx.moveTo(b.x+2,b.y+b.h*.38);ctx.lineTo(b.x+b.w-2,b.y+b.h*.38);ctx.stroke();
+      ctx.fillStyle='#6b4a1f';ctx.fillRect(b.x+5,b.y+b.h*.38-3,5,7);
+    }
     ctx.fillStyle=col.ink;
     if(boss){
       ctx.font='bold 15px "Noto Sans KR",system-ui,sans-serif';
@@ -679,8 +796,8 @@ function draw(){
   }
   for(const r of G.rings){
     const k=1-r.life/.3;
-    ctx.strokeStyle='rgba(255,179,71,'+(1-k).toFixed(2)+')';ctx.lineWidth=3;
-    ctx.beginPath();ctx.arc(r.x,r.y,10+48*k,0,7);ctx.stroke();
+    ctx.strokeStyle='rgba('+r.c+','+(1-k).toFixed(2)+')';ctx.lineWidth=3;
+    ctx.beginPath();ctx.arc(r.x,r.y,10+(r.r-10)*k,0,7);ctx.stroke();
   }
   ctx.lineWidth=2;
   for(const a of G.arcs){
@@ -691,7 +808,7 @@ function draw(){
   }
   for(const b of G.balls){
     ctx.globalAlpha=b.clone?.7:1;
-    ballShape(b.x,b.y,b.clone?4:R,b.c1,b.c2,!!b.evo&&!b.clone);
+    ballShape(b.x,b.y,ballR(b),b.c1,b.c2,!!b.evo&&!b.clone);
   }
   ctx.globalAlpha=1;
   for(const p of G.parts){
@@ -707,7 +824,7 @@ function draw(){
   ctx.stroke();
   if(evo('railgun')){
     /* railgun owners see where the beam will bounce */
-    const segs=railPath(),last=segs[segs.length-1];
+    const segs=railPath(railBounces(mlvOf('e:railgun'))),last=segs[segs.length-1];
     ctx.setLineDash([6,6]);ctx.strokeStyle='rgba(215,184,255,.3)';ctx.lineWidth=1.5;
     ctx.beginPath();ctx.moveTo(segs[0].x,segs[0].y);
     for(let i=1;i<segs.length;i++)ctx.lineTo(segs[i].x,segs[i].y);
@@ -754,8 +871,9 @@ let lastXp=-1;
 const pipsHtml=l=>`<span class="pips">${[1,2,3].map(k=>'<i'+(k<=l?' class="on"':'')+'></i>').join('')}</span>`;
 function slotHtml(s){
   if(!s)return '<div class="slot empty"><span class="n">빈 공 슬롯</span></div>';
-  if(s.kind==='evo'){const E=EVO[s.id];return `<div class="slot evo" style="--c:${E.c}"><span class="n"><i class="dot"></i>${E.n}</span><span class="tag">진화</span></div>`;}
-  if(s.kind==='fused'){const A=AB[s.ids[0]],B=AB[s.ids[1]];return `<div class="slot"><span class="n sm"><span style="color:${A.c}">${A.n}</span>+<span style="color:${B.c}">${B.n}</span></span><span class="tag">합성</span></div>`;}
+  const star=s.kind==='single'?0:mlvOf(slotKey(s));
+  if(s.kind==='evo'){const E=EVO[s.id];return `<div class="slot evo" style="--c:${E.c}"><span class="n"><i class="dot"></i>${E.n}</span><span class="tag">진화 ★${star}</span></div>`;}
+  if(s.kind==='fused'){const A=AB[s.ids[0]],B=AB[s.ids[1]];return `<div class="slot"><span class="n sm"><span style="color:${A.c}">${A.n}</span>+<span style="color:${B.c}">${B.n}</span></span><span class="tag">합성 ★${star}</span></div>`;}
   const a=AB[s.id];
   return `<div class="slot" style="--c:${a.c}"><span class="n"><i class="dot"></i>${a.n}</span>${pipsHtml(G.ab[s.id])}</div>`;
 }
@@ -773,6 +891,9 @@ function hud(){
   $('slots').innerHTML=s;
   let p='';for(let i=0;i<PSLOTS;i++)p+=pslotHtml(G.pslots[i]);
   $('pslots').innerHTML=p;
+  const ag=Object.keys(G.aug);
+  $('augs').hidden=!ag.length;
+  $('augs').innerHTML=ag.map(k=>`<span class="augc" style="--c:${AUG[k].c}">${AUG[k].n}${G.aug[k]>1?' ×'+G.aug[k]:''}</span>`).join('');
 }
 function hudFrame(){
   const w=(G.xp/G.need*100).toFixed(1);
@@ -792,7 +913,7 @@ ov.addEventListener('toggle',e=>{if(e.target.classList&&e.target.classList.conta
 addEventListener('keydown',e=>{
   if(e.code==='ArrowLeft'||e.code==='KeyA'){keys.left=true;if(G.state==='play')e.preventDefault();}
   else if(e.code==='ArrowRight'||e.code==='KeyD'){keys.right=true;if(G.state==='play')e.preventDefault();}
-  else if(G.state==='choose'&&/^Digit[1-3]$/.test(e.code))pick(+e.code[5]-1);
+  else if(G.state==='choose'&&/^Digit[1-4]$/.test(e.code))pick(+e.code[5]-1);
 });
 addEventListener('keyup',e=>{
   if(e.code==='ArrowLeft'||e.code==='KeyA')keys.left=false;
