@@ -181,20 +181,60 @@ function reset(){
   G={state:'title',t:0,lv:1,xp:0,need:xpNeed(1),hp:BASE_HP,maxHp:BASE_HP,kills:0,
      balls:[],bricks:[],parts:[],arcs:[],rings:[],beams:[],boom:[],
      ab:{},pa:{},evo:{},slots:[],pslots:[],queue:[],launchT:0,rowN:0,topY:8,
-     freezeT:0,banner:null,pending:0,choices:null,first:false,flash:0,overAt:0};
+     freezeT:0,banner:null,pending:0,choices:null,first:false,flash:0,overAt:0,
+     nextBoss:100,bosses:0,seen:{}};
   for(let i=4;i>=0;i--)spawnRow(8+i*ROW);
   syncLoadout();
 }
 
+/* special bricks unlock over time (at = seconds); each is announced the first time it shows up */
+const SPECIAL={
+  gold:{n:'황금 벽돌',c:'#ffe27a',at:20,d:'부수면 경험치 5배'},
+  armor:{n:'강철 벽돌',c:'#8e9ab8',at:40,d:'받는 피해가 절반이에요'},
+  shield:{n:'보호막 벽돌',c:'#7df9ff',at:80,d:'처음 몇 번 맞는 건 막아내요'},
+  regen:{n:'재생 벽돌',c:'#63d297',at:130,d:'체력이 차올라요. 불을 붙이면 멈춰요'},
+  breeder:{n:'증식 벽돌',c:'#e05bd6',at:190,d:'옆 칸에 벽돌을 계속 만들어요'},
+  boss:{n:'보스 벽돌',c:'#ff5470',d:'선에 닿으면 HP -3 · 부수면 경험치 폭탄'}
+};
+/* gentle early, steeper late; after 4 minutes a time multiplier keeps strong builds honest */
+const rowBase=n=>(2+n*.22+n*n*.001)*(1+Math.max(0,G.t-240)/240);
+function addBrick(c,y,hp,type,row,w=1,h=1){
+  const b={x:c*CW+2,y,w:CW*w-4,h:ROW*h-4,col:c,hp,max:hp,row,type,flash:0,burn:0,burnDps:0,burnAcc:0,ff:false,chill:0,chillBonus:0,
+    shield:type==='shield'?Math.min(6,2+Math.floor(G.t/90)):0,breedT:5,dead:false};
+  G.bricks.push(b);
+  if(type!=='normal'&&!G.seen[type]){G.seen[type]=true;const S=SPECIAL[type];G.banner={text:'새 적: '+S.n,sub:S.d,c:S.c,t:2.6};}
+  return b;
+}
 function spawnRow(y){
-  /* gentle early, steeper late so evolved builds still end eventually */
-  const n=G.rowN++,base=2+n*.22+n*n*.001;
+  const n=G.rowN++,base=rowBase(n);
   const cols=[];
   for(let c=0;c<COLS;c++)if(rnd()<.6)cols.push(c);
   while(cols.length<3){const c=(rnd()*COLS)|0;if(!cols.includes(c))cols.push(c);}
   for(const c of cols){
-    const hp=Math.max(1,Math.round(base*(.7+rnd()*.7)));
-    G.bricks.push({x:c*CW+2,y,w:CW-4,h:BH,hp,max:hp,row:n,flash:0,burn:0,burnDps:0,burnAcc:0,ff:false,chill:0,chillBonus:0,dead:false});
+    let type='normal',hp=Math.max(1,Math.round(base*(.7+rnd()*.7)));
+    if(G.t>SPECIAL.gold.at&&rnd()<.03)type='gold';
+    else if(G.t>SPECIAL.armor.at&&rnd()<Math.min(.3,(G.t-SPECIAL.armor.at)/600)){
+      const pool=['armor','shield','regen','breeder'].filter(k=>G.t>SPECIAL[k].at);
+      type=pool[(rnd()*pool.length)|0];
+    }
+    if(type==='gold')hp=Math.round(hp*1.5);
+    if(type==='regen')hp=Math.round(hp*1.2);
+    addBrick(c,y,hp,type,n);
+  }
+}
+function spawnBoss(y){
+  const n=G.rowN++,w=4,c=(rnd()*(COLS-w+1))|0;
+  const first=!G.seen.boss;
+  addBrick(c,y,Math.round(rowBase(n)*28),'boss',n,w,2);
+  if(!first)G.banner={text:'보스 등장!',sub:SPECIAL.boss.d,c:SPECIAL.boss.c,t:2.2};
+}
+function breed(b){
+  for(const c of rnd()<.5?[b.col-1,b.col+1]:[b.col+1,b.col-1]){
+    if(c<0||c>=COLS)continue;
+    const x=c*CW+2;
+    if(G.bricks.some(o=>!o.dead&&o.x<x+CW-4&&o.x+o.w>x&&o.y<b.y+b.h&&o.y+o.h>b.y))continue;
+    addBrick(c,b.y,Math.max(1,Math.ceil(b.hp*.6)),'normal',b.row);
+    return;
   }
 }
 
@@ -250,17 +290,25 @@ function split(b,n){
 function ignite(br,dur,dps){br.burn=Math.max(br.burn,dur);br.burnDps=Math.max(br.burnDps,dps);}
 function hurt(br,d){
   if(br.dead)return;
-  br.hp-=d;br.flash=.1;
+  br.flash=.1;
+  if(br.shield>0){br.shield--;return;}
+  if(br.type==='armor')d*=.5;
+  br.hp-=d;
   if(br.hp<=0)kill(br);
 }
 function kill(br){
   br.dead=true;G.kills++;
-  gainXp(Math.max(1,Math.round(br.max*.5*pp('study','mul',1))));
+  let xp=Math.max(1,Math.round(br.max*.5*pp('study','mul',1)*(br.type==='gold'?5:1)));
+  if(br.type==='boss'){
+    xp=Math.min(xp,Math.round(G.need*2.5));G.bosses++;
+    G.banner={text:'보스 격파!',c:SPECIAL.boss.c,t:1.8};
+  }
+  gainXp(xp);
   const cx=br.x+br.w/2,cy=br.y+br.h/2;
   if(evo('fireworks')&&br.burn>0)G.boom.push({x:cx,y:cy,d:Math.max(3,br.max*.5)});
   if(G.parts.length<240){
-    const c=TIER[tier(br.max)];
-    for(let i=0;i<6;i++)G.parts.push({x:cx,y:cy,vx:rnd()*160-80,vy:rnd()*160-100,life:.45,c});
+    const c=SPECIAL[br.type]&&br.type!=='shield'?SPECIAL[br.type].c:TIER[tier(br.max)];
+    for(let i=0,n=br.type==='boss'?28:6;i<n;i++)G.parts.push({x:cx,y:cy,vx:rnd()*160-80,vy:rnd()*160-100,life:.45,c});
   }
 }
 function bolt(from,k,d,range){
@@ -340,14 +388,31 @@ function rayHits(x0,y0,dx,dy,tMax,b,pad){
   }
   return true;
 }
+/* the beam leaves the barrel, bounces off the first wall (side or ceiling) once, then runs to the next wall */
+function railPath(){
+  let x=CX+Math.sin(angle)*26,y=CY-Math.cos(angle)*26,dx=Math.sin(angle),dy=-Math.cos(angle);
+  const segs=[];
+  for(let k=0;k<2;k++){
+    let t=1e9,wall=null;
+    if(dx>1e-6){t=(W-x)/dx;wall='side';}else if(dx<-1e-6){t=-x/dx;wall='side';}
+    if(dy<-1e-6){const ty=-y/dy;if(ty<t){t=ty;wall='top';}}
+    else if(dy>1e-6){const ty=(H-y)/dy;if(ty<t){t=ty;wall='floor';}}
+    segs.push({x,y,dx,dy,t});
+    x+=dx*t;y+=dy*t;
+    if(wall==='floor')break;
+    if(wall==='side')dx=-dx;else dy=-dy;
+  }
+  return segs;
+}
 function railgun(){
-  const dx=Math.sin(angle),dy=-Math.cos(angle),x0=CX+dx*26,y0=CY+dy*26;
-  let tMax=2000;
-  if(dx>0)tMax=Math.min(tMax,(W-x0)/dx);else if(dx<0)tMax=Math.min(tMax,-x0/dx);
-  if(dy<0)tMax=Math.min(tMax,-y0/dy);
-  const dmg=8+G.rowN*.25+pp('power','add',0)*2;
-  for(const b of G.bricks)if(!b.dead&&rayHits(x0,y0,dx,dy,tMax,b,4))hurt(b,dmg);
-  G.beams.push({x1:x0,y1:y0,x2:x0+dx*tMax,y2:y0+dy*tMax,life:.25});
+  const segs=railPath(),hit=new Set();
+  const dmg=rowBase(G.rowN)*.8+pp('power','add',0)*2;
+  for(const s of segs)for(const b of G.bricks){
+    if(b.dead||hit.has(b)||!rayHits(s.x,s.y,s.dx,s.dy,s.t,b,4))continue;
+    hit.add(b);hurt(b,dmg);
+  }
+  const last=segs[segs.length-1];
+  G.beams.push({pts:segs.map(s=>[s.x,s.y]).concat([[last.x+last.dx*last.t,last.y+last.dy*last.t]]),life:.25});
 }
 function explode(e){
   G.rings.push({x:e.x,y:e.y,life:.3});
@@ -478,15 +543,15 @@ function pick(i){
 }
 
 /* ---------- flow ---------- */
-function breach(row){
-  G.bricks=G.bricks.filter(b=>b.row!==row);
-  G.hp--;G.flash=.35;hud();
+function breach(b){
+  G.bricks=G.bricks.filter(o=>o.row!==b.row);
+  G.hp=Math.max(0,G.hp-(b.type==='boss'?3:1));G.flash=.35;hud();
   if(G.hp<=0)over();
 }
 function over(){
   G.state='over';G.overAt=performance.now();
   const evos=G.slots.filter(s=>s.kind==='evo').map(s=>EVO[s.id].n);
-  show(`<h1>게임 오버</h1><p class="stat">Lv ${G.lv} · 벽돌 ${G.kills}개 · ${fmt(G.t)}</p>${evos.length?`<p class="sub">진화: ${evos.join(', ')}</p>`:''}<button class="btn" id="again">다시 하기</button>`);
+  show(`<h1>게임 오버</h1><p class="stat">Lv ${G.lv} · 벽돌 ${G.kills}개 · ${fmt(G.t)}${G.bosses?' · 보스 '+G.bosses:''}</p>${evos.length?`<p class="sub">진화: ${evos.join(', ')}</p>`:''}<button class="btn" id="again">다시 하기</button>`);
   $('again').onclick=()=>{if(performance.now()-G.overAt>600)start();};
 }
 function showTitle(){
@@ -515,13 +580,18 @@ function update(dt){
     const dy=Math.min(30,5+G.t*.04)*dt;
     for(const b of G.bricks)b.y+=dy;
     G.topY+=dy;
-    while(G.topY>0){const ny=G.topY-ROW;spawnRow(ny);G.topY=ny;}
+    while(G.topY>0){
+      if(G.t>=G.nextBoss){G.nextBoss+=100;const ny=G.topY-2*ROW;spawnBoss(ny);G.topY=ny;}
+      else{const ny=G.topY-ROW;spawnRow(ny);G.topY=ny;}
+    }
   }
 
   for(const b of G.bricks){
     if(b.dead)continue;
     b.flash=Math.max(0,b.flash-dt);
     if(b.chill>0&&(b.chill-=dt)<=0)b.chillBonus=0;
+    if(b.type==='regen'&&b.burn<=0&&b.hp<b.max)b.hp=Math.min(b.max,b.hp+b.max*.05*dt);
+    if(b.type==='breeder'&&(b.breedT-=dt)<=0){b.breedT=6;breed(b);}
     if(b.burn>0){
       b.burn-=dt;b.burnAcc+=b.burnDps*dt;
       if(b.burnAcc>=1){const d=Math.floor(b.burnAcc);b.burnAcc-=d;hurt(b,d);}
@@ -533,7 +603,7 @@ function update(dt){
   G.balls=G.balls.filter(b=>!b.dead);
   G.bricks=G.bricks.filter(b=>!b.dead);
 
-  for(const b of G.bricks)if(b.y+b.h>=LINE){breach(b.row);break;}
+  for(const b of G.bricks)if(b.y+b.h>=LINE){breach(b);break;}
 
   for(const p of G.parts){p.x+=p.vx*dt;p.y+=p.vy*dt;p.vy+=380*dt;p.life-=dt;}
   G.parts=G.parts.filter(p=>p.life>0);
@@ -573,20 +643,38 @@ function draw(){
   ctx.font='bold 13px "Noto Sans KR",system-ui,sans-serif';
   ctx.textAlign='center';ctx.textBaseline='middle';
   for(const b of G.bricks){
-    rr(b.x,b.y,b.w,b.h,5);
-    ctx.fillStyle=TIER[tier(b.hp)];ctx.fill();
+    const S=b.type!=='normal'&&b.type!=='shield'?SPECIAL[b.type]:null,boss=b.type==='boss';
+    rr(b.x,b.y,b.w,b.h,boss?8:5);
+    ctx.fillStyle=S?S.c:TIER[tier(b.hp)];ctx.fill();
+    if(b.type==='armor'){ctx.strokeStyle='#4f5878';ctx.lineWidth=3;ctx.stroke();}
+    if(boss){ctx.strokeStyle='#ffd0d8';ctx.lineWidth=2;ctx.stroke();}
     if(b.chill>0){ctx.fillStyle='rgba(191,234,255,.4)';ctx.fill();}
     if(b.flash>0){ctx.fillStyle='rgba(255,255,255,'+(b.flash*6).toFixed(2)+')';ctx.fill();}
     if(b.burn>0){ctx.strokeStyle=b.ff?'#ff8fd0':'#ff9a5c';ctx.lineWidth=2;ctx.stroke();}
+    if(b.shield>0){ctx.strokeStyle='#7df9ff';ctx.lineWidth=2.5;ctx.stroke();}
     ctx.fillStyle=col.ink;
-    ctx.fillText(Math.ceil(b.hp),b.x+b.w/2,b.y+b.h/2+1);
+    if(boss){
+      ctx.font='bold 15px "Noto Sans KR",system-ui,sans-serif';
+      ctx.fillText('보스 '+Math.ceil(b.hp),b.x+b.w/2,b.y+b.h/2+1);
+      ctx.font='bold 13px "Noto Sans KR",system-ui,sans-serif';
+    }else ctx.fillText(Math.ceil(b.hp),b.x+b.w/2,b.y+b.h/2+1);
+    if(b.type==='regen')ctx.fillText('+',b.x+7,b.y+8);
+    if(b.type==='breeder')for(let i=-1;i<=1;i++){ctx.beginPath();ctx.arc(b.x+b.w/2+i*7,b.y+b.h-4,1.6,0,7);ctx.fill();}
+    if(b.type==='gold'){ctx.strokeStyle='rgba(255,255,255,.7)';ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(b.x+6,b.y+b.h-5);ctx.lineTo(b.x+13,b.y+5);ctx.stroke();}
+    if(b.shield>0){
+      ctx.fillStyle='#7df9ff';ctx.beginPath();ctx.arc(b.x+b.w-5,b.y+5,6,0,7);ctx.fill();
+      ctx.fillStyle=col.ink;ctx.font='bold 9px system-ui,sans-serif';ctx.fillText(b.shield,b.x+b.w-5,b.y+5.5);
+      ctx.font='bold 13px "Noto Sans KR",system-ui,sans-serif';
+    }
   }
   if(G.freezeT>0){ctx.fillStyle='rgba(168,230,255,'+(Math.min(1,G.freezeT)*.12).toFixed(3)+')';ctx.fillRect(0,0,W,LINE);}
 
+  ctx.lineJoin='round';
   for(const bm of G.beams){
     const a=bm.life/.25;
-    ctx.strokeStyle='rgba(215,184,255,'+(a*.5).toFixed(2)+')';ctx.lineWidth=10;
-    ctx.beginPath();ctx.moveTo(bm.x1,bm.y1);ctx.lineTo(bm.x2,bm.y2);ctx.stroke();
+    ctx.beginPath();ctx.moveTo(bm.pts[0][0],bm.pts[0][1]);
+    for(let i=1;i<bm.pts.length;i++)ctx.lineTo(bm.pts[i][0],bm.pts[i][1]);
+    ctx.strokeStyle='rgba(215,184,255,'+(a*.5).toFixed(2)+')';ctx.lineWidth=10;ctx.stroke();
     ctx.strokeStyle='rgba(255,255,255,'+a.toFixed(2)+')';ctx.lineWidth=2.5;ctx.stroke();
   }
   for(const r of G.rings){
@@ -616,7 +704,16 @@ function draw(){
   ctx.beginPath();
   ctx.moveTo(CX+Math.sin(angle)*34,CY-Math.cos(angle)*34);
   ctx.lineTo(CX+Math.sin(angle)*130,CY-Math.cos(angle)*130);
-  ctx.stroke();ctx.restore();
+  ctx.stroke();
+  if(evo('railgun')){
+    /* railgun owners see where the beam will bounce */
+    const segs=railPath(),last=segs[segs.length-1];
+    ctx.setLineDash([6,6]);ctx.strokeStyle='rgba(215,184,255,.3)';ctx.lineWidth=1.5;
+    ctx.beginPath();ctx.moveTo(segs[0].x,segs[0].y);
+    for(let i=1;i<segs.length;i++)ctx.lineTo(segs[i].x,segs[i].y);
+    ctx.lineTo(last.x+last.dx*last.t,last.y+last.dy*last.t);ctx.stroke();
+  }
+  ctx.restore();
 
   /* magazine: balls waiting to be fired, next one closest to the turret */
   G.queue.forEach((k,i)=>{
@@ -642,6 +739,11 @@ function draw(){
     ctx.font='30px "Do Hyeon","Noto Sans KR",system-ui,sans-serif';ctx.textAlign='center';
     ctx.lineWidth=6;ctx.strokeStyle=col.ink;ctx.strokeText(G.banner.text,W/2,H*.42);
     ctx.fillStyle=G.banner.c;ctx.fillText(G.banner.text,W/2,H*.42);
+    if(G.banner.sub){
+      ctx.font='15px "Noto Sans KR",system-ui,sans-serif';
+      ctx.lineWidth=4;ctx.strokeText(G.banner.sub,W/2,H*.42+30);
+      ctx.fillStyle=col.fg;ctx.fillText(G.banner.sub,W/2,H*.42+30);
+    }
     ctx.globalAlpha=1;
   }
   if(G.flash>0){ctx.fillStyle='rgba(255,107,129,'+(G.flash*.9).toFixed(2)+')';ctx.fillRect(0,0,W,H);}
@@ -716,7 +818,7 @@ function frame(now){
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);
-window.__g={get G(){return G;},update,pick,hud,setAim:a=>{aim=clamp(a,-MAXA,MAXA);angle=aim;},start};
+window.__g={get G(){return G;},update,pick,hud,sync:syncLoadout,setAim:a=>{aim=clamp(a,-MAXA,MAXA);angle=aim;},start};
 })();
 </script>
 </body>
